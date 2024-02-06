@@ -1,0 +1,149 @@
+Autobackup configuration:
+
+Backup script:
+postgres@ip-172-31-93-165:~/14/pg_backups$ cat /var/lib/postgresql/backups.sh 
+current_date=$(date "+%YY_%m_%d_%H_%M_%S")
+`pg_basebackup -p 5435 -F t -X fetch -D /var/lib/postgresql/14/pg_backups/auto_backup_$current_date`
+
+Cron setup:
+*/10 * * * * sh /var/lib/postgresql/backups.sh
+
+=======================================
+CREATE DATABASE pitr_test1;
+\c pitr_test1
+
+Sample Data:
+CREATE TABLE public.employee (
+    id int8 NOT NULL,
+    name varchar(120) NOT NULL,
+    salary int8 NOT NULL,
+    CONSTRAINT emp_pk PRIMARY KEY (id)
+);
+
+WITH salary_list AS (
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1, 1000000) as n
+
+Copy table into 2 more tables with and without data:
+CREATE TABLE student (LIKE employee INCLUDING ALL);
+CREATE TABLE staff AS TABLE employee WITH DATA;
+
+======================
+pitr_test1=# \dt+
+                                     List of relations
+ Schema |   Name   | Type  |  Owner   | Persistence | Access method |  Size   | Description 
+--------+----------+-------+----------+-------------+---------------+---------+-------------
+ public | employee | table | postgres | permanent   | heap          | 123 MB  | 
+ public | staff    | table | postgres | permanent   | heap          | 123 MB  | 
+ public | student  | table | postgres | permanent   | heap          | 0 bytes | 
+(3 rows)
+
+pitr_test1=# DROP TABLE employee;
+DROP TABLE
+pitr_test1=# select now();
+              now              
+-------------------------------
+ 2024-02-06 00:22:09.603575+00
+(1 row)
+
+pitr_test1=# TRUNCATE TABLE staff;
+TRUNCATE TABLE
+pitr_test1=# select now();
+              now              
+-------------------------------
+ 2024-02-06 00:22:20.339588+00
+(1 row)
+
+pitr_test1=# \dt+
+                                     List of relations
+ Schema |  Name   | Type  |  Owner   | Persistence | Access method |  Size   | Description 
+--------+---------+-------+----------+-------------+---------------+---------+-------------
+ public | staff   | table | postgres | permanent   | heap          | 0 bytes | 
+ public | student | table | postgres | permanent   | heap          | 0 bytes | 
+(2 rows)
+
+================
+Time to Restore: 2024-02-06 00:21
+
+Process to Restore:
+Step1 : Check the latest available FULL Backup before time to restore:
+Ex: Feb  6 00:20 auto_backup_2024Y_02_06_00_10_01
+-rw------- 1 postgres postgres    225749 Feb  6 00:10 backup_manifest
+-rw------- 1 postgres postgres 337199616 Feb  6 00:10 base.tar
+
+Step2 : Stop the PostgreSQL Service:
+sudo systemctl stop postgresql@14-main.service
+
+Step3 : Remove the contents of the Data Directory.
+rm -rf /var/lib/postgresql/14/main/*
+
+Step4 : Untar the backup to the Data Directory.
+tar -xvf /var/lib/postgresql/14/pg_backups/auto_backup_2024Y_02_06_00_10_01/base.tar -C /var/lib/postgresql/14/main/
+
+Step5 : Add recovery settings in postgresql.conf.
+cat << EOF | tee -a /etc/postgresql/14/main/postgresql.conf 
+restore_command = 'cp /var/lib/postgresql/14/archive/%f "%p"'
+recovery_target_time = '2024-02-06 00:21:00'
+EOF
+
+Step6 : Create recovery.signal in Data directory.
+touch /var/lib/postgresql/14/main/recovery.signal
+
+Step7 : Start the PostgreSQL service:
+sudo systemctl start postgresql@14-main.service
+
+Verify the PostgreSQL Logs:
+2024-02-06 00:57:02.124 UTC [96603] LOG:  starting PostgreSQL 14.10 (Ubuntu 14.10-1.pgdg20.04+1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0, 64-bit
+2024-02-06 00:57:02.124 UTC [96603] LOG:  listening on IPv4 address "127.0.0.1", port 5435
+2024-02-06 00:57:02.127 UTC [96603] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5435"
+2024-02-06 00:57:02.135 UTC [96604] LOG:  database system was interrupted; last known up at 2024-02-06 00:10:03 UTC
+cp: cannot stat '/var/lib/postgresql/14/archive/00000002.history': No such file or directory
+2024-02-06 00:57:02.152 UTC [96604] LOG:  starting point-in-time recovery to 2024-02-06 00:21:00+00
+2024-02-06 00:57:02.476 UTC [96604] LOG:  restored log file "000000010000000000000040" from archive
+2024-02-06 00:57:02.511 UTC [96604] LOG:  redo starts at 0/40000028
+2024-02-06 00:57:02.513 UTC [96604] LOG:  consistent recovery state reached at 0/40000138
+2024-02-06 00:57:02.514 UTC [96603] LOG:  database system is ready to accept read-only connections
+2024-02-06 00:57:02.608 UTC [96604] LOG:  restored log file "000000010000000000000041" from archive
+2024-02-06 00:57:02.866 UTC [96604] LOG:  restored log file "000000010000000000000042" from archive
+2024-02-06 00:57:03.139 UTC [96604] LOG:  restored log file "000000010000000000000043" from archive
+2024-02-06 00:57:03.422 UTC [96604] LOG:  restored log file "000000010000000000000044" from archive
+2024-02-06 00:57:03.678 UTC [96604] LOG:  restored log file "000000010000000000000045" from archive
+2024-02-06 00:57:03.913 UTC [96604] LOG:  restored log file "000000010000000000000046" from archive
+2024-02-06 00:57:04.153 UTC [96604] LOG:  restored log file "000000010000000000000047" from archive
+2024-02-06 00:57:04.415 UTC [96604] LOG:  restored log file "000000010000000000000048" from archive
+2024-02-06 00:57:04.649 UTC [96604] LOG:  restored log file "000000010000000000000049" from archive
+2024-02-06 00:57:04.946 UTC [96604] LOG:  restored log file "00000001000000000000004A" from archive
+2024-02-06 00:57:05.188 UTC [96604] LOG:  restored log file "00000001000000000000004B" from archive
+2024-02-06 00:57:05.445 UTC [96604] LOG:  restored log file "00000001000000000000004C" from archive
+2024-02-06 00:57:05.726 UTC [96604] LOG:  restored log file "00000001000000000000004D" from archive
+2024-02-06 00:57:06.001 UTC [96604] LOG:  restored log file "00000001000000000000004E" from archive
+2024-02-06 00:57:06.248 UTC [96604] LOG:  restored log file "00000001000000000000004F" from archive
+2024-02-06 00:57:06.501 UTC [96604] LOG:  restored log file "000000010000000000000050" from archive
+2024-02-06 00:57:06.869 UTC [96604] LOG:  restored log file "000000010000000000000051" from archive
+2024-02-06 00:57:07.569 UTC [96604] LOG:  restored log file "000000010000000000000052" from archive
+2024-02-06 00:57:08.627 UTC [96604] LOG:  restored log file "000000010000000000000053" from archive
+2024-02-06 00:57:09.416 UTC [96604] LOG:  restored log file "000000010000000000000054" from archive
+2024-02-06 00:57:10.260 UTC [96604] LOG:  recovery stopping before commit of transaction 754, time 2024-02-06 00:22:01.437085+00
+2024-02-06 00:57:10.260 UTC [96604] LOG:  pausing at the end of recovery
+2024-02-06 00:57:10.260 UTC [96604] HINT:  Execute pg_wal_replay_resume() to promote.
+
+Step8 : Connect to the Database and execute wal replay:
+pitr_test1=# select pg_wal_replay_resume();
+ pg_wal_replay_resume 
+----------------------
+ 
+(1 row)
+
+Step9 : Validate the Data(Missing employee table and Staff table are restored with data)
+pitr_test1=# \dt+
+                                     List of relations
+ Schema |   Name   | Type  |  Owner   | Persistence | Access method |  Size   | Description 
+--------+----------+-------+----------+-------------+---------------+---------+-------------
+ public | employee | table | postgres | permanent   | heap          | 123 MB  | 
+ public | staff    | table | postgres | permanent   | heap          | 123 MB  | 
+ public | student  | table | postgres | permanent   | heap          | 0 bytes | 
+(3 rows)
