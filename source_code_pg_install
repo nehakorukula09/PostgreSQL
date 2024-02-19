@@ -1,0 +1,161 @@
+User creation in Debian 12v:
+
+sudo useradd postgres
+admin@ip-172-31-25-51:~$ id postgres
+uid=1001(postgres) gid=1001(postgres) groups=1001(postgres),100(users)
+
+Installation of PostgreSQL 13.8v from source code:
+Download from https://www.postgresql.org/ftp/source/v13.8/
+
+Step1: 
+admin@ip-172-31-25-51:/tmp$ ls -l
+-rw-r--r-- 1 admin admin 28046336 Feb 19 22:19 postgresql-13.8.tar.gz
+admin@ip-172-31-25-51:/tmp$ tar -xvf  postgresql-13.8.tar.gz
+
+Step2:
+admin@ip-172-31-25-51:~$ mkdir -p /home/admin/postgresql/13
+
+Step3:
+admin@ip-172-31-25-51:/tmp/postgresql-13.8$ ./configure --prefix=/home/admin/postgresql/13 --with-pgport=5432
+
+Error1:
+configure: error: in `/tmp/postgresql-13.8':
+configure: error: no acceptable C compiler found in $PATH
+See `config.log' for more details
+admin@ip-172-31-25-51:/tmp/postgresql-13.8$ sudo apt update
+sudo apt install -y build-essential
+
+Error2:
+configure: error: readline library not found
+If you have readline already installed, see config.log for details on the
+failure.  It is possible the compiler isn't looking in the proper directory.
+Use --without-readline to disable readline support.
+sudo apt install libreadline-dev
+
+Error3:
+configure: error: zlib library not found
+If you have zlib already installed, see config.log for details on the
+failure.  It is possible the compiler isn't looking in the proper directory.
+Use --without-zlib to disable zlib support.
+sudo apt-get install zlib1g-dev
+
+Step4:
+cd /tmp/postgresql-13.8
+ls -ltr
+which make
+make
+ls -ltr /home/admin/postgresql/13/
+make install
+admin@ip-172-31-25-51:/tmp/postgresql-13.8$ ls -ltr /home/admin/postgresql/13/
+total 16
+drwxr-xr-x 6 admin admin 4096 Feb 19 22:46 include
+drwxr-xr-x 2 admin admin 4096 Feb 19 22:46 bin
+drwxr-xr-x 6 admin admin 4096 Feb 19 22:46 share
+drwxr-xr-x 4 admin admin 4096 Feb 19 22:46 lib
+cd contrib/
+admin@ip-172-31-25-51:/tmp/postgresql-13.8/contrib$ pwd
+/tmp/postgresql-13.8/contrib
+make install
+
+Step5:
+admin@ip-172-31-25-51:/tmp/postgresql-13.8/contrib$ cd /home/admin/postgresql/13/bin/
+admin@ip-172-31-25-51:~/postgresql/13/bin$ ./pg_config 
+BINDIR = /home/admin/postgresql/13/bin
+DOCDIR = /home/admin/postgresql/13/share/doc
+HTMLDIR = /home/admin/postgresql/13/share/doc
+INCLUDEDIR = /home/admin/postgresql/13/include
+PKGINCLUDEDIR = /home/admin/postgresql/13/include
+INCLUDEDIR-SERVER = /home/admin/postgresql/13/include/server
+LIBDIR = /home/admin/postgresql/13/lib
+PKGLIBDIR = /home/admin/postgresql/13/lib
+LOCALEDIR = /home/admin/postgresql/13/share/locale
+MANDIR = /home/admin/postgresql/13/share/man
+SHAREDIR = /home/admin/postgresql/13/share
+SYSCONFDIR = /home/admin/postgresql/13/etc
+PGXS = /home/admin/postgresql/13/lib/pgxs/src/makefiles/pgxs.mk
+CONFIGURE =  '--prefix=/home/admin/postgresql/13' '--with-pgport=5432'
+CC = gcc
+CPPFLAGS = -D_GNU_SOURCE
+CFLAGS = -Wall -Wmissing-prototypes -Wpointer-arith -Wdeclaration-after-statement -Werror=vla -Wendif-labels -Wmissing-format-attribute -Wimplicit-fallthrough=3 -Wformat-security -fno-strict-aliasing -fwrapv -fexcess-precision=standard -Wno-format-truncation -Wno-stringop-truncation -O2
+CFLAGS_SL = -fPIC
+LDFLAGS = -Wl,--as-needed -Wl,-rpath,'/home/admin/postgresql/13/lib',--enable-new-dtags
+LDFLAGS_EX = 
+LDFLAGS_SL = 
+LIBS = -lpgcommon -lpgport -lz -lreadline -lm 
+VERSION = PostgreSQL 13.8
+
+Step6:
+admin@ip-172-31-25-51:~/postgresql/13/bin$ mkdir -p /home/admin/psql/13.8/data
+cd /home/admin
+admin@ip-172-31-25-51:~$ sudo chown -R postgres:postgres psql/13.8/data
+admin@ip-172-31-25-51:~$ sudo chown -R postgres:postgres postgresql/13
+admin@ip-172-31-25-51:~$
+
+Step7:
+sudo su - postgres
+postgres@ip-172-31-25-51:~$ /home/admin/postgresql/13/bin/initdb -D /home/admin/psql/13.8/data/
+postgres@ip-172-31-25-51:~$ /home/admin/postgresql/13/bin/pg_ctl status -D /home/admin/psql/13.8/data/
+pg_ctl: no server running
+postgres@ip-172-31-25-51:~$ /home/admin/postgresql/13/bin/pg_ctl start -D /home/admin/psql/13.8/data/
+waiting for server to start....2024-02-19 22:56:48.966 UTC [16703] LOG:  starting PostgreSQL 13.8 on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+2024-02-19 22:56:48.966 UTC [16703] LOG:  listening on IPv6 address "::1", port 5432
+2024-02-19 22:56:48.966 UTC [16703] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-02-19 22:56:48.972 UTC [16703] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-02-19 22:56:48.980 UTC [16704] LOG:  database system was shut down at 2024-02-19 22:56:02 UTC
+2024-02-19 22:56:48.984 UTC [16703] LOG:  database system is ready to accept connections
+ done
+server started
+postgres@ip-172-31-25-51:~$ /home/admin/postgresql/13/bin/pg_ctl status -D /home/admin/psql/13.8/data/
+pg_ctl: server is running (PID: 16703)
+/home/admin/postgresql/13/bin/postgres "-D" "/home/admin/psql/13.8/data"
+postgres@ip-172-31-25-51:/home/admin/psql/13.8/data$ /home/admin/postgresql/13/bin/psql 
+psql (13.8)
+Type "help" for help.
+
+postgres=# select version();
+                                          version                                          
+-------------------------------------------------------------------------------------------
+ PostgreSQL 13.8 on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+(1 row)
+
+===========UPGRADE=============
+postgres@ip-172-31-25-51:~$ /home/admin/postgresql/13/bin/pg_ctl stop -D /home/admin/psql/13.8/data/
+waiting for server to shut down.... done
+server stopped
+postgres@ip-172-31-25-51:~$ /home/admin/postgresql/13/bin/pg_ctl status -D /home/admin/psql/13.8/data/
+pg_ctl: no server running
+
+To use the apt repository, follow these steps:
+
+# Create the file repository configuration:
+sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+
+# Import the repository signing key:
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+
+# Update the package lists:
+sudo apt-get update
+
+# Install the latest version of PostgreSQL.
+# If you want a specific version, use 'postgresql-12' or similar instead of 'postgresql':
+sudo apt-get -y install postgresql-13
+
+==========
+postgres@ip-172-31-25-51:~$ pg_ctlcluster 13 main status
+pg_ctl: server is running (PID: 21342)
+/usr/lib/postgresql/13/bin/postgres "-D" "/var/lib/postgresql/13/main" "-c" "config_file=/etc/postgresql/13/main/postgresql.conf"
+postgres@ip-172-31-25-51:~$ pg_ctlcluster 13 main stop
+Warning: stopping the cluster using pg_ctlcluster will mark the systemd unit as failed. Consider using systemctl:
+  sudo systemctl stop postgresql@13-main
+postgres@ip-172-31-25-51:~$ pg_ctlcluster 13 main start
+Warning: the cluster will not be running as a systemd service. Consider using systemctl:
+  sudo systemctl start postgresql@13-main
+
+postgres=# select version();
+                                                        version                                                        
+-----------------------------------------------------------------------------------------------------------------------
+ PostgreSQL 13.14 (Debian 13.14-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+(1 row)
+==========
+
+
