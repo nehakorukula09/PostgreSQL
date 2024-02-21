@@ -1,0 +1,72 @@
+Streaming Replication:
+
+Primary:
+
+Step1: Create Replica User:
+postgres=# CREATE USER replica REPLICATION;
+CREATE ROLE
+postgres=# \du
+                                   List of roles
+ Role name |                         Attributes                         | Member of 
+-----------+------------------------------------------------------------+-----------
+ postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
+ replica   | Replication                                                | {}
+
+Step2: Config changes:
+Entry in pg_hba and Reload conf:
+host	replication	replica		<standby_ip>/32	trust
+
+Step3: Slot creation:
+postgres=# SELECT * FROM pg_create_physical_replication_slot('repl_slot');
+ slot_name | lsn 
+-----------+-----
+ repl_slot | 
+(1 row)
+
+Step4: Change config file with below parameters:
+#------------------------------------------------------------------------------
+# CUSTOMIZED OPTIONS
+#------------------------------------------------------------------------------
+listen_addresses = '*'
+max_wal_senders = 10
+wal_level = replica
+wal_log_hints = on
+max_replication_slots = 10
+hot_standby = on 
+
+primary_conninfo = 'user=replica host=<primary_ip> port=5432 sslmode=prefer sslcompression=1'
+primary_slot_name = 'repl_slot'
+
+#synchronous_commit = on
+#synchronous_standby_names = '*'
+# Add settings for extensions here
+
+Step5: Restart the server:
+admin@ip-172-31-25-51:~$ sudo systemctl restart postgresql@13-main.service
+
+Standby:
+Step1: 
+admin@ip-172-31-19-115:~$ sudo systemctl stop postgresql@13-main.service 
+
+Cleanup Data Directory:
+admin@ip-172-31-19-115:~$ sudo su - postgres
+postgres@ip-172-31-19-115:~$ rm -rf /var/lib/postgresql/13/main/*
+
+Backup:
+postgres@ip-172-31-19-115:~$ pg_basebackup -h 54.163.62.178 -D /var/lib/postgresql/13/main -U replica -v -P -R -X stream -c fast
+pg_basebackup: initiating base backup, waiting for checkpoint to complete
+pg_basebackup: checkpoint completed
+pg_basebackup: write-ahead log start point: 0/2000028 on timeline 1
+pg_basebackup: starting background WAL receiver
+pg_basebackup: created temporary replication slot "pg_basebackup_21985"
+24323/24323 kB (100%), 1/1 tablespace                                         
+pg_basebackup: write-ahead log end point: 0/2000100
+pg_basebackup: waiting for background process to finish streaming ...
+pg_basebackup: syncing data to disk ...
+pg_basebackup: renaming backup_manifest.tmp to backup_manifest
+pg_basebackup: base backup completed
+
+Start the cluster:
+admin@ip-172-31-19-115:~$ sudo systemctl start postgresql@13-main.service
+
+
