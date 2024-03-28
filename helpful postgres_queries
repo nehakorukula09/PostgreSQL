@@ -1,0 +1,50 @@
+pg_hba.conf file:
+
+PostgreSQL 12,14:
+
+SELECT pg_read_file('pg_hba.conf');
+select * from pg_hba_file_rules ;
+ line_number | type  |   database    | user_name |   address    |                 netmask                 | auth_method | options | error 
+-------------+-------+---------------+-----------+--------------+-----------------------------------------+-------------+---------+-------
+          84 | local | {all}         | {all}     |              |                                         | peer        |         | 
+          86 | host  | {all}         | {all}     | 127.0.0.1    | 255.255.255.255                         | ident       |         | 
+          88 | host  | {all}         | {all}     | ::1          | ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff | ident       |         | 
+          91 | local | {replication} | {all}     |              |                                         | peer        |         | 
+          92 | host  | {replication} | {all}     | 127.0.0.1    | 255.255.255.255                         | ident       |         | 
+          93 | host  | {replication} | {all}     | ::1          | ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff | ident       |         | 
+          94 | host  | {replication} | {replica} | 3.86.112.199 | 255.255.255.255                         | trust       |         | 
+(7 rows)
+
+postgres=# select pg_conf_load_time();
+       pg_conf_load_time       
+-------------------------------
+ 2024-03-28 21:24:32.701709+00
+(1 row)
+
+postgres=# SELECT pg_conf_load_time() > modification FROM pg_stat_file('pg_hba.conf');
+ ?column? 
+----------
+ t
+(1 row)
+postgres=# select setting from pg_settings where name like '%hba%';
+              setting               
+------------------------------------
+ /var/lib/pgsql/12/data/pg_hba.conf
+(1 row)
+
+Adding entry to pg_hba.conf from Database:
+postgres=# CREATE TABLE pghba (lines text);
+CREATE TABLE
+postgres=# COPY pghba from '/var/lib/pgsql/12/data/pg_hba.conf';
+COPY 93
+postgres=# INSERT INTO pghba(lines) VALUES ('host  replication  replica   3.86.112.199/32  trust');
+INSERT 0 1
+postgres=# COPY pghba to '/var/lib/pgsql/12/data/pg_hba.conf';
+COPY 94
+
+
+
+
+
+
+
