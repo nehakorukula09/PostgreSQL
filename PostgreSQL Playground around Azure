@@ -1,0 +1,26 @@
+Sample Database created in Azure: PostgreSQL Version 15.
+
+psql "--host=*****" "--port=5432" "--dbname=postgres" "--username=****" "--set=sslmode=require"
+
+postgres=> select version();
+                                               version                                               
+-----------------------------------------------------------------------------------------------------
+ PostgreSQL 15.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit
+(1 row)
+
+postgres=> \du nnk_test 
+                                                        List of roles
+ Role name |             Attributes             |                                  Member of                                  
+-----------+------------------------------------+-----------------------------------------------------------------------------
+ nnk_test  | Create role, Create DB, Bypass RLS | {pg_read_all_settings,pg_read_all_stats,pg_stat_scan_tables,azure_pg_admin}
+
+
+postgres=> CREATE DATABASE migration_db;
+CREATE DATABASE
+postgres=> \l migration_db 
+                                List of databases
+     Name     |  Owner   | Encoding |  Collate   |   Ctype    | Access privileges 
+--------------+----------+----------+------------+------------+-------------------
+ migration_db | nnk_test | UTF8     | en_US.utf8 | en_US.utf8 | 
+(1 row)
+
