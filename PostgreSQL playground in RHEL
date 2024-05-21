@@ -1,0 +1,95 @@
+Installation on Linux(RHEL):
+
+# Install the repository RPM:
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+
+# Disable the built-in PostgreSQL module:
+sudo dnf -qy module disable postgresql
+
+# Install PostgreSQL:
+sudo dnf install -y postgresql13-server
+
+# Optionally initialize the database and enable automatic start:
+sudo /usr/pgsql-13/bin/postgresql-13-setup initdb
+sudo systemctl enable postgresql-13
+sudo systemctl start postgresql-13
+
+========================
+
+On Primary : 
+postgres=# CREATE USER replica_user WITH REPLICATION PASSWORD 'replicapgsql';
+CREATE ROLE
+
+postgresql.conf:
+listen_addresses = '*'
+Restart the server
+
+Some more replication setup parameters:
+wal_level= replica
+hot_standby=on
+
+
+pg_hba.conf
+host	all,replication	replica_user	3.90.162.54/32		md5
+Reload
+
+Check connectivity from standby:
+[ec2-user@ip-172-31-17-195 ~]$ /usr/pgsql-13/bin/psql -h <primary host> -p 5432 -U replica_user -d postgres
+Password for user replica_user: 
+psql (13.15)
+Type "help" for help.
+
+postgres=>
+
+On Standby:
+Stop the server
+[ec2-user@ip-172-31-17-195 ~]$ sudo systemctl stop postgresql-13
+[postgres@ip-172-31-17-195 ~]$ rm -rf /var/lib/pgsql/13/data/*
+
+[postgres@ip-172-31-17-195 ~]$ /usr/pgsql-13/bin/pg_basebackup -D /var/lib/pgsql/13/data/ -h 34.230.10.154 -p 5432 -U replica_user -Xs -R -P -v
+Password: 
+pg_basebackup: initiating base backup, waiting for checkpoint to complete
+pg_basebackup: checkpoint completed
+pg_basebackup: write-ahead log start point: 0/2000028 on timeline 1
+pg_basebackup: starting background WAL receiver
+pg_basebackup: created temporary replication slot "pg_basebackup_32367"
+24412/24412 kB (100%), 1/1 tablespace                                         
+pg_basebackup: write-ahead log end point: 0/2000100
+pg_basebackup: waiting for background process to finish streaming ...
+pg_basebackup: syncing data to disk ...
+pg_basebackup: renaming backup_manifest.tmp to backup_manifest
+pg_basebackup: base backup completed
+
+Start the server
+[ec2-user@ip-172-31-17-195 ~]$ sudo systemctl start postgresql-13
+[ec2-user@ip-172-31-17-195 ~]$ ps -ef| grep post
+postgres   32293       1  0 23:29 ?        00:00:00 /usr/pgsql-13/bin/postmaster -D /var/lib/pgsql/13/data/
+postgres   32294   32293  0 23:29 ?        00:00:00 postgres: logger 
+postgres   32295   32293  0 23:29 ?        00:00:00 postgres: startup recovering 000000010000000000000003
+postgres   32296   32293  0 23:29 ?        00:00:00 postgres: checkpointer 
+postgres   32297   32293  0 23:29 ?        00:00:00 postgres: background writer 
+postgres   32298   32293  0 23:29 ?        00:00:00 postgres: stats collector 
+postgres   32299   32293  0 23:29 ?        00:00:00 postgres: walreceiver streaming 0/3000060
+ec2-user   32305    3989  0 23:30 pts/0    00:00:00 grep --color=auto post
+
+====================
+Failover
+
+Validate replication on slave:
+SELECT pg_is_in_recovery() AS is_slave,
+pg_last_wal_receive_lsn() AS receive,
+pg_last_wal_replay_lsn() AS replay,
+pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() AS synced,
+(
+EXTRACT(EPOCH FROM now()) -
+EXTRACT(EPOCH FROM pg_last_xact_replay_timestamp())
+)::int AS lag;
+
+ is_slave |  receive  |  replay   | synced | lag 
+----------+-----------+-----------+--------+-----
+ t        | 0/3000148 | 0/3000148 | t      |    
+(1 row)
+
+
+
+
