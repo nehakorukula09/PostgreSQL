@@ -1,3 +1,9 @@
+User adding and deleting in Linux:
+userdel
+sudo userdel <username> -r
+useradd
+sudo useradd <username> [ Optional --home /home/username]
+
 Installation on Linux(RHEL):
 
 # Install the repository RPM:
