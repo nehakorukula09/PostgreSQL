@@ -4,6 +4,16 @@ sudo userdel <username> -r
 useradd
 sudo useradd <username> [ Optional --home /home/username]
 
+pg_stat_statements installation:
+FATAL:  could not access file "pg_stat_statements": No such file or directory
+yum install postgresql-contrib
+sudo yum install postgresql13-contrib
+postgres=# CREATE EXTENSION pg_stat_statements;
+CREATE EXTENSION
+postgres=# ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+ALTER SYSTEM
+postgres=# \q
+
 Installation on Linux(RHEL):
 
 # Install the repository RPM:
