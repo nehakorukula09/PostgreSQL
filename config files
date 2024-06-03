@@ -1,0 +1,13 @@
+postgres=# show config_file ;
+              config_file               
+----------------------------------------
+ /var/lib/pgsql/12/data/postgresql.conf
+(1 row)
+
+postgres=# show hba_file ;
+              hba_file              
+------------------------------------
+ /var/lib/pgsql/12/data/pg_hba.conf
+(1 row)
+
+
