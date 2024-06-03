@@ -25,5 +25,10 @@ postgres=#  select * from pg_hba_file_rules ;
           93 | host  | {replication} | {all}     | ::1       | ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff | ident       |         | 
 (6 rows)
 
-
+pg_ident.conf:
+postgres=# show ident_file;
+              ident_file              
+--------------------------------------
+ /var/lib/pgsql/13/data/pg_ident.conf
+(1 row)
 
