@@ -1,13 +1,29 @@
+PG Versions 12,13,14,15
+
+postgresql.conf:
 postgres=# show config_file ;
               config_file               
 ----------------------------------------
  /var/lib/pgsql/12/data/postgresql.conf
 (1 row)
 
+pg_hba.conf:
 postgres=# show hba_file ;
               hba_file              
 ------------------------------------
  /var/lib/pgsql/12/data/pg_hba.conf
 (1 row)
+
+postgres=#  select * from pg_hba_file_rules ;
+ line_number | type  |   database    | user_name |  address  |                 netmask                 | auth_method | options | error 
+-------------+-------+---------------+-----------+-----------+-----------------------------------------+-------------+---------+-------
+          84 | local | {all}         | {all}     |           |                                         | peer        |         | 
+          86 | host  | {all}         | {all}     | 127.0.0.1 | 255.255.255.255                         | ident       |         | 
+          88 | host  | {all}         | {all}     | ::1       | ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff | ident       |         | 
+          91 | local | {replication} | {all}     |           |                                         | peer        |         | 
+          92 | host  | {replication} | {all}     | 127.0.0.1 | 255.255.255.255                         | ident       |         | 
+          93 | host  | {replication} | {all}     | ::1       | ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff | ident       |         | 
+(6 rows)
+
 
 
