@@ -108,6 +108,7 @@ EXTRACT(EPOCH FROM pg_last_xact_replay_timestamp())
 
 --------------
 pgbadger installation:
+
 RHEL
 [ec2-user@ip-172-31-28-157 ~]$ sudo yum install pgbadger
 Error: 
@@ -117,6 +118,14 @@ Error:
 Fix: sudo dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
 or sudo yum install perl perl-devel
 and then sudo yum install pgbadger
+
+Error: 
+ Problem: package pgbadger-12.4-1PGDG.rhel9.noarch from pgdg-common requires perl-Text-CSV_XS, but none of the providers can be installed
+  - cannot install the best candidate for the job
+  - nothing provides perl(:MODULE_COMPAT_5.26.3) needed by perl-Text-CSV_XS-1.40-1.el8.x86_64 from epel
+  - nothing provides libperl.so.5.26()(64bit) needed by perl-Text-CSV_XS-1.40-1.el8.x86_64 from epel
+(try to add '--skip-broken' to skip uninstallable packages or '--nobest' to use not only best candidate packages)
+
 
 
 
