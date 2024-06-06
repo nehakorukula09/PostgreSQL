@@ -106,6 +106,18 @@ EXTRACT(EPOCH FROM pg_last_xact_replay_timestamp())
  t        | 0/3000148 | 0/3000148 | t      |    
 (1 row)
 
+--------------
+pgbadger installation:
+RHEL
+[ec2-user@ip-172-31-28-157 ~]$ sudo yum install pgbadger
+Error: 
+ Problem: cannot install the best candidate for the job
+  - nothing provides perl-Text-CSV_XS needed by pgbadger-12.4-1PGDG.rhel9.noarch from pgdg-common
+(try to add '--skip-broken' to skip uninstallable packages or '--nobest' to use not only best candidate packages)
+Fix: sudo dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+or sudo yum install perl perl-devel
+and then sudo yum install pgbadger
+
 
 
 
