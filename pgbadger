@@ -1,0 +1,37 @@
+PostgreSQL Configuration:
+
+ log_line_prefix = '%t [%p]: user=%u,db=%d,app=%a,client=%h '
+ log_min_duration_statement = 0
+   log_checkpoints = on
+    log_connections = on
+    log_disconnections = on
+    log_lock_waits = on
+    log_temp_files = 0
+    log_autovacuum_min_duration = 0
+    log_error_verbosity = default
+
+For query statistics to include the actual query strings -> log_min_duration_statement either 0 or some milliseconds
+To report duration and no. of queries,don't want details about queries -> log_min_duration_statement=-1 to disable it,enable log_duration
+
+"Enabling log_min_duration_statement will add reports about slowest queries and queries that took up the most time"
+Note : If you have log_statement set to 'all', nothing will be logged with log_min_duration_statement.
+
+Warning: Do not enable both log_min_duration_statement, log_duration and log_statement all together, 
+this will result in wrong counter values. Note that this will also increase drastically the size of your log. 
+log_min_duration_statement should always be preferred.
+
+Installation:
+SUSE: sudo zypper install pgbadger
+Ubuntu: sudo apt install pgbadger
+RHEL: sudo yum install pgbadger
+
+Usage:
+postgres@ip-172-31-83-10:~/15/data/log> pgbadger /var/lib/pgsql/15/data/log/postgresql-Tue.log -f syslog
+LOG: Ok, generating html report... 1002 bytes of 1002 (100.00%), queries: 0, events: 0
+
+-f options : syslog, syslog2, stderr, jsonlog, csv, pgbouncer, logplex, rds and redshift. 
+            Use this option when pgBadger is not able to detect the log format.
+
+nehakorukula@Nehas-MacBook-Pro Downloads % scp -i "nnk_pgsql-2.pem" ec2-user@<IP>:/tmp/out.html .
+out.html                                                                                                               100%  758KB   1.0MB/s   00:00 
+
