@@ -25,6 +25,15 @@ SUSE: sudo zypper install pgbadger
 Ubuntu: sudo apt install pgbadger
 RHEL: sudo yum install pgbadger
 
+Source code installation:
+https://www.postgresql.org/about/news/pgbadger-v116-released-2295/
+sudo wget https://github.com/darold/pgbadger/archive/v11.4.tar.gz
+tar xzvf v11.4.tar.gz
+cd pgbadger-11.4/
+make && sudo make install
+[ec2-user@ip-172-31-28-157 pgbadger-11.4]$ pgbadger --version
+pgBadger version 11.4
+
 Usage:
 postgres@ip-172-31-83-10:~/15/data/log> pgbadger /var/lib/pgsql/15/data/log/postgresql-Tue.log -f syslog
 LOG: Ok, generating html report... 1002 bytes of 1002 (100.00%), queries: 0, events: 0
