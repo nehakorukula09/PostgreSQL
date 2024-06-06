@@ -9,3 +9,6 @@ Initializing database ... OK
 ec2-user@ip-172-31-83-10:~> sudo systemctl start postgresql-15.service
 ec2-user@ip-172-31-83-10:~> sudo systemctl enable postgresql-15.service
 
+pgbadger installation:
+sudo zypper install pgbadger
+
