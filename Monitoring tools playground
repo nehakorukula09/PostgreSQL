@@ -1,0 +1,62 @@
+PMM
+pgbadger
+pgAdmin
+Prometheus
+Datadog
+Zabbix
+Open Telemetry
+
+PMM
+Install Percona Monitoring and Management
+
+Easy Install script:
+Linux or macOS¶
+Using curl:
+curl -fsSL https://www.percona.com/get/pmm | /bin/bash
+Using wget:
+wget -O - https://www.percona.com/get/pmm | /bin/bash
+This script: Installs Docker if it is not already installed on your system.
+             Stops and renames any currently running PMM Server Docker container from pmm-server to pmm-server-{timestamp}. 
+             This old pmm-server container is not a recoverable backup.
+             Pulls and runs the latest PMM Server Docker image.
+             Can run in Interactive mode to change the default settings:
+curl -fsSLO https://www.percona.com/get/pmm (or wget https://www.percona.com/get/pmm)
+chmod +x pmm
+./pmm --interactive
+
+Manual Installation:
+
+1. Install PMM server
+Requires docker:
+curl -fsSL https://www.percona.com/get/pmm | /bin/bash
+ec2-user@ip-172-31-83-10:~> wget https://www.percona.com/get/pmm | /bin/bash
+[ec2-user@ip-172-31-28-157 ~]$ curl -fsSL https://www.percona.com/get/pmm | /bin/bash
+
+SUSE:
+sudo wget https://repo.percona.com/pmm2-client/yum/release/latest/RPMS/x86_64/pmm2-client-2.10.0-6.el6.x86_64.rpm
+
+2. Install PMM Client
+  RedHat:
+  1. Download and install Percona Repo Package
+     sudo yum install https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+  2. Install Percona Monitoring and Management Client
+     sudo yum install pmm2-client
+
+  SUSE:
+      sudo zypper install https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+      sudo zypper install pmm2-client-2.10.0-6.el6.x86_64.rpm
+
+  Ubuntu:
+    wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb // Download percona Repo
+  sudo dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb // Install Repo package
+  sudo apt-get update // Update apt cache
+  sudo apt-get install pmm2-client // Install PMM client
+  sudo apt-get install pmm2-client
+
+3. Connect Client to Server
+    Requirements: Client to server communication to secure port on pmm-server (443 assumed) — 
+                  must be performed on every system to be monitored.
+
+    Register Percona Monitoring and Management client with server
+              sudo pmm-admin config --server-insecure-tls --server-url=https://admin:<password>@pmm.example.com
+
