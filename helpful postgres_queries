@@ -42,6 +42,19 @@ INSERT 0 1
 postgres=# COPY pghba to '/var/lib/pgsql/12/data/pg_hba.conf';
 COPY 94
 
+Query to check long running queries:
+SELECT
+  Pid,datname,application_name,left(query,400),
+  usename,backend_type,
+  pg_stat_activity.query_start,
+  now() - pg_stat_activity.query_start AS query_time,
+now() - pg_stat_activity.xact_start AS xact_time,
+ state,
+  wait_event_type,
+  wait_event
+FROM pg_stat_activity
+WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes'  and state <> 'idle'
+and query not like '%START_REPLICATION%';
 
 
 
