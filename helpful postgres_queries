@@ -56,6 +56,12 @@ FROM pg_stat_activity
 WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes'  and state <> 'idle'
 and query not like '%START_REPLICATION%';
 
+Archive: 
+postgres=# ALTER SYSTEM set archive_mode = 'on';
+ALTER SYSTEM
+postgres=# ALTER SYSTEM set archive_command='test ! -f /var/lib/pgsql/15/archive/%f && cp %p /var/lib/pgsql/15/archive/%f';
+ALTER SYSTEM
+
 
 
 
