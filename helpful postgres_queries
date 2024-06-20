@@ -62,7 +62,21 @@ ALTER SYSTEM
 postgres=# ALTER SYSTEM set archive_command='test ! -f /var/lib/pgsql/15/archive/%f && cp %p /var/lib/pgsql/15/archive/%f';
 ALTER SYSTEM
 
+Dummy data
+wget https://github.com/pthom/northwind_psql/blob/master/northwind.sql?raw=true -o log_file -O dump_file.sql
 
+Shortcuts:
+\du - roles
+\duS - including predefined roles
+\dt - tables
+\dn - schemas
+\di - indices
+\dx - extensions
+
+\l - databases
+\x - extended display
+\pset pager - Full long display
+\? - help
 
 
 
