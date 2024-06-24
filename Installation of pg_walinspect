@@ -1,0 +1,213 @@
+Steps for installation: (RHEL OS is used for this blog).
+Download the source code from the link https://www.postgresql.org/ftp/source/v15.6/
+Once the file is unzipped , execute ./configure from downloaded directory postgresql-15.6
+For installing the the documentation (HTML and man pages), and  the additional modules (contrib) , execute make world and sudo make install-world
+Validate the pg_walinspect control file and sql file in location /usr/local/pgsql/share/extension/
+
+nehakorukula@Nehas-MacBook-Pro Downloads % scp -i "nnk_pgsql-2.pem" postgresql-15.6.tar.gz ec2-user@*******:/tmp
+postgresql-15.6.tar.gz                                                                                                    100%   29MB   2.8MB/s   00:10    
+nehakorukula@Nehas-MacBook-Pro Downloads % 
+
+
+[ec2-user@ip-******* tmp]$ tar -xvzf postgresql-15.6.tar.gz
+cd postgresql-15.6
+./configure 
+
+Error   : configure: error: no acceptable C compiler found in $PATH
+Fix     : sudo yum install gcc
+
+Error   : configure: error: readline library not found
+ It is possible the compiler isn't looking in the proper directory.
+Use --without-readline to disable readline support.
+Fix     : ./configure --without-readline
+
+Error   : configure: error: zlib library not found
+It is possible the compiler isn't looking in the proper directory.
+Use --without-zlib to disable zlib support.
+Fix     : ./configure --without-readline --without-zlib 
+
+make
+
+If you want to build everything that can be built, including the documentation (HTML and man pages), 
+and the additional modules (contrib), type instead:
+make world
+
+sudo make install-world
+
+cd /usr/local/pgsql/share/extension/
+-rw-r--r--. 1 root root  3665 Jun 21 23:17 pg_walinspect--1.0.sql
+-rw-r--r--. 1 root root   183 Jun 21 23:17 pg_walinspect.control
+
+[ec2-user@ip-******* extension]$ sudo cp /usr/local/pgsql/share/extension/pg_walinspect* /usr/pgsql-15/share/extension/
+
+ERROR:  could not access file "$libdir/pg_walinspect": No such file or directory
+[postgres@ip-172-31-17-195 extension]$ /usr/pgsql-15/bin/pg_config --libdir
+/usr/pgsql-15/lib
+
+sudo scp /usr/local/pgsql/lib/pg_walinspect.so /usr/pgsql-15/lib
+
+wal_db=# CREATE EXTENSION pg_walinspect ;
+CREATE EXTENSION
+wal_db=# \dx pg_walinspect 
+                                  List of installed extensions
+     Name      | Version | Schema |                         Description                         
+---------------+---------+--------+-------------------------------------------------------------
+ pg_walinspect | 1.0     | public | functions to inspect contents of PostgreSQL Write-Ahead Log
+(1 row)
+
+wal_db=# SELECT pg_current_wal_lsn(), pg_walfile_name( pg_current_wal_lsn() );;
+ pg_current_wal_lsn |     pg_walfile_name      
+--------------------+--------------------------
+ 0/1A1E990          | 000000010000000000000001
+(1 row)
+
+wal_db=# CREATE TABLE region (
+    region_id smallint NOT NULL,
+    region_description character varying(60) NOT NULL
+);
+CREATE TABLE
+wal_db=# INSERT INTO region VALUES (1, 'Eastern');
+INSERT INTO region VALUES (2, 'Western');
+INSERT INTO region VALUES (3, 'Northern');
+INSERT INTO region VALUES (4, 'Southern');
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+wal_db=# ALTER TABLE ONLY region
+    ADD CONSTRAINT pk_region PRIMARY KEY (region_id);
+ALTER TABLE
+wal_db=# UPDATE region SET region_description = 'Southern Region' where region_id=4;
+UPDATE 1
+wal_db=# DELETE FROM region where region_id=3;
+DELETE 1
+wal_db=# SELECT pg_current_wal_lsn(), pg_walfile_name( pg_current_wal_lsn() );;
+ pg_current_wal_lsn |     pg_walfile_name      
+--------------------+--------------------------
+ 0/1A37240          | 000000010000000000000001
+(1 row)
+
+wal_db=# select start_lsn, end_lsn,  xid, resource_manager, record_type, record_length, description::varchar(50) from pg_get_wal_records_info('0/1A1E990','0/1A37240');
+ start_lsn |  end_lsn  | xid | resource_manager |  record_type  | record_length |                    description                     
+-----------+-----------+-----+------------------+---------------+---------------+----------------------------------------------------
+ 0/1A1E990 | 0/1A1E9C0 |   0 | Storage          | CREATE        |            42 | base/16388/16410
+ 0/1A1E9C0 | 0/1A1EA98 | 753 | Heap             | INSERT        |           211 | off 14 flags 0x00
+ 0/1A1EA98 | 0/1A1FE80 | 753 | Btree            | INSERT_LEAF   |          5093 | off 250
+ 0/1A1FE80 | 0/1A217C8 | 753 | Btree            | INSERT_LEAF   |          6441 | off 117
+ 0/1A217C8 | 0/1A21820 | 753 | Heap2            | MULTI_INSERT  |            85 | 1 tuples flags 0x02
+ 0/1A21820 | 0/1A236A8 | 753 | Btree            | INSERT_LEAF   |          7789 | off 159
+ 0/1A236A8 | 0/1A24FB8 | 753 | Btree            | INSERT_LEAF   |          6389 | off 138
+ 0/1A24FB8 | 0/1A25090 | 753 | Heap             | INSERT        |           211 | off 15 flags 0x00
+ 0/1A25090 | 0/1A250D0 | 753 | Btree            | INSERT_LEAF   |            64 | off 250
+ 0/1A250D0 | 0/1A26CB0 | 753 | Btree            | INSERT_LEAF   |          7109 | off 16
+ 0/1A26CB0 | 0/1A26D08 | 753 | Heap2            | MULTI_INSERT  |            85 | 1 tuples flags 0x02
+ 0/1A26D08 | 0/1A26D50 | 753 | Btree            | INSERT_LEAF   |            72 | off 159
+ 0/1A26D50 | 0/1A28360 | 753 | Btree            | INSERT_LEAF   |          5621 | off 108
+ 0/1A28360 | 0/1A28430 | 753 | Heap             | INSERT        |           203 | off 4 flags 0x00
+ 0/1A28430 | 0/1A28DE0 | 753 | Btree            | INSERT_LEAF   |          2473 | off 119
+ 0/1A28DE0 | 0/1A29FF0 | 753 | Btree            | INSERT_LEAF   |          4617 | off 91
+ 0/1A29FF0 | 0/1A2B980 | 753 | Btree            | INSERT_LEAF   |          6517 | off 279
+ 0/1A2B980 | 0/1A2BAB8 | 753 | Heap2            | MULTI_INSERT  |           310 | 2 tuples flags 0x02
+ 0/1A2BAB8 | 0/1A2D3E8 | 753 | Btree            | INSERT_LEAF   |          6421 | off 176
+ 0/1A2D3E8 | 0/1A2DE98 | 753 | Btree            | INSERT_LEAF   |          2733 | off 132
+ 0/1A2DE98 | 0/1A2DEE8 | 753 | Btree            | INSERT_LEAF   |            80 | off 176
+ 0/1A2DEE8 | 0/1A2DF28 | 753 | Btree            | INSERT_LEAF   |            64 | off 133
+ 0/1A2DF28 | 0/1A2E280 | 753 | Heap2            | MULTI_INSERT  |           830 | 6 tuples flags 0x02
+ 0/1A2E280 | 0/1A2E2C8 | 753 | Btree            | INSERT_LEAF   |            72 | off 176
+ 0/1A2E2C8 | 0/1A2E308 | 753 | Btree            | INSERT_LEAF   |            64 | off 132
+ 0/1A2E308 | 0/1A2E350 | 753 | Btree            | INSERT_LEAF   |            72 | off 179
+ 0/1A2E350 | 0/1A2E390 | 753 | Btree            | INSERT_LEAF   |            64 | off 132
+ 0/1A2E390 | 0/1A2E3D8 | 753 | Btree            | INSERT_LEAF   |            72 | off 176
+ 0/1A2E3D8 | 0/1A2E418 | 753 | Btree            | INSERT_LEAF   |            64 | off 132
+ 0/1A2E418 | 0/1A2E460 | 753 | Btree            | INSERT_LEAF   |            72 | off 180
+ 0/1A2E460 | 0/1A2E4A0 | 753 | Btree            | INSERT_LEAF   |            64 | off 132
+ 0/1A2E4A0 | 0/1A2E4E8 | 753 | Btree            | INSERT_LEAF   |            72 | off 176
+ 0/1A2E4E8 | 0/1A2E528 | 753 | Btree            | INSERT_LEAF   |            64 | off 132
+ 0/1A2E528 | 0/1A2E570 | 753 | Btree            | INSERT_LEAF   |            72 | off 181
+ 0/1A2E570 | 0/1A2E5B0 | 753 | Btree            | INSERT_LEAF   |            64 | off 132
+ 0/1A2E5B0 | 0/1A2E608 | 753 | Heap2            | MULTI_INSERT  |            85 | 1 tuples flags 0x02
+ 0/1A2E608 | 0/1A30070 | 753 | Btree            | INSERT_LEAF   |          6729 | off 115
+ 0/1A30070 | 0/1A300B8 | 753 | Btree            | INSERT_LEAF   |            72 | off 151
+ 0/1A300B8 | 0/1A300F0 | 753 | Heap2            | PRUNE         |            56 | latestRemovedXid 752 nredirected 0 ndead 1
+ 0/1A300F0 | 0/1A30120 | 753 | Standby          | LOCK          |            42 | xid 753 db 16388 rel 16410 
+ 0/1A30120 | 0/1A302D8 | 753 | Transaction      | COMMIT        |           437 | 2024-06-21 23:51:56.058043+00; inval msgs: catcach
+ 0/1A302D8 | 0/1A30310 |   0 | Standby          | RUNNING_XACTS |            50 | nextXid 754 latestCompletedXid 753 oldestRunningXi
+ 0/1A30310 | 0/1A30358 | 754 | Heap             | INSERT+INIT   |            65 | off 1 flags 0x00
+ 0/1A30358 | 0/1A30380 | 754 | Transaction      | COMMIT        |            34 | 2024-06-21 23:52:07.201926+00
+ 0/1A30380 | 0/1A303C8 | 755 | Heap             | INSERT        |            65 | off 2 flags 0x00
+ 0/1A303C8 | 0/1A303F0 | 755 | Transaction      | COMMIT        |            34 | 2024-06-21 23:52:07.203001+00
+ 0/1A303F0 | 0/1A30438 | 756 | Heap             | INSERT        |            66 | off 3 flags 0x00
+ 0/1A30438 | 0/1A30460 | 756 | Transaction      | COMMIT        |            34 | 2024-06-21 23:52:07.20389+00
+ 0/1A30460 | 0/1A304A8 | 757 | Heap             | INSERT        |            66 | off 4 flags 0x00
+ 0/1A304A8 | 0/1A304D0 | 757 | Transaction      | COMMIT        |            34 | 2024-06-21 23:52:07.204949+00
+ 0/1A304D0 | 0/1A30500 | 758 | Standby          | LOCK          |            42 | xid 758 db 16388 rel 16410 
+ 0/1A30500 | 0/1A30530 | 758 | Storage          | CREATE        |            42 | base/16388/16413
+ 0/1A30530 | 0/1A30560 | 758 | Standby          | LOCK          |            42 | xid 758 db 16388 rel 16413 
+ 0/1A30560 | 0/1A30630 | 758 | Heap             | INSERT        |           203 | off 5 flags 0x00
+ 0/1A30630 | 0/1A30670 | 758 | Btree            | INSERT_LEAF   |            64 | off 120
+ 0/1A30670 | 0/1A306B8 | 758 | Btree            | INSERT_LEAF   |            72 | off 89
+ 0/1A306B8 | 0/1A306F8 | 758 | Btree            | INSERT_LEAF   |            64 | off 280
+ 0/1A306F8 | 0/1A307B0 | 758 | Heap2            | MULTI_INSERT  |           180 | 1 tuples flags 0x02
+ 0/1A307B0 | 0/1A307F8 | 758 | Btree            | INSERT_LEAF   |            72 | off 184
+ 0/1A307F8 | 0/1A30838 | 758 | Btree            | INSERT_LEAF   |            64 | off 140
+ 0/1A30838 | 0/1A30900 | 758 | Heap             | INSERT        |           197 | off 6 flags 0x00
+ 0/1A30900 | 0/1A31528 | 758 | Btree            | INSERT_LEAF   |          3109 | off 112
+ 0/1A31528 | 0/1A32288 | 758 | Btree            | INSERT_LEAF   |          3393 | off 165
+ 0/1A32288 | 0/1A32348 | 758 | Heap             | INSERT        |           191 | off 18 flags 0x00
+ 0/1A32348 | 0/1A32C90 | 758 | Btree            | INSERT_LEAF   |          2373 | off 114
+ 0/1A32C90 | 0/1A341C0 | 758 | Btree            | INSERT_LEAF   |          5397 | off 113
+ 0/1A341C0 | 0/1A35890 | 758 | Btree            | INSERT_LEAF   |          5837 | off 114
+ 0/1A35890 | 0/1A361F0 | 758 | Btree            | INSERT_LEAF   |          2373 | off 112
+ 0/1A361F0 | 0/1A36B38 | 758 | Btree            | INSERT_LEAF   |          2373 | off 114
+ 0/1A36B38 | 0/1A36B90 | 758 | Heap2            | MULTI_INSERT  |            85 | 1 tuples flags 0x02
+ 0/1A36B90 | 0/1A36BD8 | 758 | Btree            | INSERT_LEAF   |            72 | off 120
+ 0/1A36BD8 | 0/1A36C20 | 758 | Btree            | INSERT_LEAF   |            72 | off 139
+ 0/1A36C20 | 0/1A36C78 | 758 | Heap2            | MULTI_INSERT  |            85 | 1 tuples flags 0x02
+ 0/1A36C78 | 0/1A36CC0 | 758 | Btree            | INSERT_LEAF   |            72 | off 116
+ 0/1A36CC0 | 0/1A36D08 | 758 | Btree            | INSERT_LEAF   |            72 | off 142
+ 0/1A36D08 | 0/1A36D40 | 758 | Heap2            | PRUNE         |            56 | latestRemovedXid 752 nredirected 0 ndead 1
+ 0/1A36D40 | 0/1A36DF0 | 758 | XLOG             | FPI           |           169 | 
+ 0/1A36DF0 | 0/1A36E80 | 758 | XLOG             | FPI           |           137 | 
+ 0/1A36E80 | 0/1A36F40 | 758 | Heap             | INPLACE       |           188 | off 4
+ 0/1A36F40 | 0/1A37000 | 758 | Heap             | INPLACE       |           188 | off 5
+ 0/1A37000 | 0/1A37128 | 758 | Transaction      | COMMIT        |           293 | 2024-06-21 23:52:11.627248+00; inval msgs: catcach
+ 0/1A37128 | 0/1A37160 |   0 | Standby          | RUNNING_XACTS |            50 | nextXid 759 latestCompletedXid 758 oldestRunningXi
+ 0/1A37160 | 0/1A371B8 | 759 | Heap             | HOT_UPDATE    |            84 | off 4 xmax 759 flags 0x00 ; new off 5 xmax 0
+ 0/1A371B8 | 0/1A371E0 | 759 | Transaction      | COMMIT        |            34 | 2024-06-21 23:52:16.396121+00
+ 0/1A371E0 | 0/1A37218 | 760 | Heap             | DELETE        |            54 | off 3 flags 0x00 KEYS_UPDATED 
+ 0/1A37218 | 0/1A37240 | 760 | Transaction      | COMMIT        |            34 | 2024-06-21 23:52:20.17473+00
+(86 rows)
+
+
+[postgres@ip-172-31-17-195 extension]$ psql -p 5433 -d wal_db -U wal_user -h localhost
+Password for user wal_user: 
+psql (15.7)
+Type "help" for help.
+
+wal_db=>select start_lsn, end_lsn,  xid, resource_manager, record_type, record_length, description::varchar(50) from pg_get_wal_records_info('0/1A1E990','0/1A37240');
+ERROR:  permission denied for function pg_get_wal_records_info
+wal_db=> \q
+
+postgres=# GRANT pg_read_server_files to wal_user;
+GRANT ROLE
+postgres=# \du wal_user
+                  List of roles
+ Role name | Attributes |       Member of        
+-----------+------------+------------------------
+ wal_user  |            | {pg_read_server_files}
+
+postgres=# \q
+[postgres@ip-172-31-17-195 extension]$ psql -p 5433 -d wal_db -U wal_user -h localhost
+Password for user wal_user: 
+psql (15.7)
+Type "help" for help.
+
+wal_db=> select start_lsn, end_lsn,  xid, resource_manager, record_type, record_length, description::varchar(50) from pg_get_wal_records_info('0/1A1E990','0/1A37240') limit 2;
+ start_lsn |  end_lsn  | xid | resource_manager | record_type | record_length |    description    
+-----------+-----------+-----+------------------+-------------+---------------+-------------------
+ 0/1A1E990 | 0/1A1E9C0 |   0 | Storage          | CREATE      |            42 | base/16388/16410
+ 0/1A1E9C0 | 0/1A1EA98 | 753 | Heap             | INSERT      |           211 | off 14 flags 0x00
+(2 rows)
+
+
+
