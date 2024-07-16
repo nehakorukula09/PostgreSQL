@@ -1,0 +1,64 @@
+
+
+
+CREATE SCHEMA AND FUCNTION for monitoring:
+
+[postgres@ip-172-31-17-195 pgbackrest]$ cat pgbackrest-info.sql
+-- An example of monitoring pgBackRest from within PostgreSQL
+--
+-- Use copy to export data from the pgBackRest info command into the jsonb
+-- type so it can be queried directly by PostgreSQL.
+
+-- Create monitor schema
+create schema monitor;
+
+-- Get pgBackRest info in JSON format
+create function monitor.pgbackrest_info()
+    returns jsonb AS $$
+declare
+    data jsonb;
+begin
+    -- Create a temp table to hold the JSON data
+    create temp table temp_pgbackrest_data (data text);
+
+    -- Copy data into the table directly from the pgBackRest info command
+    copy temp_pgbackrest_data (data)
+        from program
+            'pgbackrest --output=json info' (format text);
+
+    select replace(temp_pgbackrest_data.data, E'\n', '\n')::jsonb
+      into data
+      from temp_pgbackrest_data;
+
+    drop table temp_pgbackrest_data;
+
+    return data;
+end $$ language plpgsql;
+
+
+Query last backup:
+[postgres@ip-172-31-17-195 pgbackrest]$ cat pgbackrest-query.sql 
+-- Get last successful backup for each stanza
+--
+-- Requires the monitor.pgbackrest_info function.
+with stanza as
+(
+    select data->'name' as name,
+           data->'backup'->(
+               jsonb_array_length(data->'backup') - 1) as last_backup,
+           data->'archive'->(
+               jsonb_array_length(data->'archive') - 1) as current_archive
+      from jsonb_array_elements(monitor.pgbackrest_info()) as data
+)
+select name,
+       to_timestamp(
+           (last_backup->'timestamp'->>'stop')::numeric) as last_successful_backup,
+       current_archive->>'max' as last_archived_wal
+  from stanza;
+
+Usage:
+  [postgres@ip-172-31-17-195 pgbackrest]$ psql -p 5433 -f pgbackrest-query.sql
+     name      | last_successful_backup |    last_archived_wal     
+---------------+------------------------+--------------------------
+ "demo_stanza" | 2024-07-15 23:35:21+00 | 00000001000000000000002E
+(1 row)
