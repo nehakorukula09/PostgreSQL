@@ -224,6 +224,7 @@ pgbackrest --stanza=demo_stanza --log-level-console=info backup
 pgbackrest --stanza=demo_stanza --log-level-console=info backup --type=diff
 pgbackrest --stanza=demo_stanza --log-level-console=info backup --type=incr
 
+Check backups using pgbackrest info
 Schedule using cron job
 
 Logs for analysis:
@@ -235,4 +236,69 @@ total 24
 -rw-r-----. 1 postgres postgres 1182 Jul 15 23:35 demo_stanza-expire.log
 -rw-r-----. 1 postgres postgres 1268 Jul 15 23:22 demo_stanza-stanza-create.log
 [postgres@ip-172-31-17-195 pgbackrest]$ view demo_stanza-backup.log
+
+======================================
+Restore:
+
+Stop the demo cluster and delete the pg_control file
+[ec2-user@ip-172-31-17-195 ~]$ sudo systemctl stop postgresql-13.service
+sudo -u postgres rm /var/lib/pgsql/13/data/global/pg_control
+
+Clear data directory:
+sudo rm -rf /var/lib/pgsql/13/data
+
+pgbackrest_restore.conf
+[postgres@ip-172-31-17-195 ~]$ cat pgbackrest_restore.conf
+[global]
+repo1-path=/var/lib/pgbackrest
+repo1-cipher-pass=******
+repo1-cipher-type=aes-256-cbc
+process-max=2
+
+[demo_stanza]
+pg1-path=/var/lib/pgsql/13/data
+pg1-port=5432
+
+[global:archive-push]
+compress-level=3
+#[demo_stanza:archive-push]
+#compress-level=3
+
+pgbackrest --config=/var/lib/pgsql/pgbackrest_restore.conf --stanza=demo_stanza --log-level-console=info restore 
+
+====
+mkdir data_15
+chmod 700 data_15/
+
+[postgres@ip-172-31-17-195 data]$ cat /var/lib/pgsql/pgbackrest_restore.conf 
+[global]
+repo1-path=/var/lib/pgbackrest
+repo1-cipher-pass=******
+repo1-cipher-type=aes-256-cbc
+process-max=2
+
+[demo_stanza]
+pg1-path=/var/lib/pgsql/data_15
+pg1-port=5432
+
+[global:archive-push]
+compress-level=3
+#[demo_stanza:archive-push]
+#compress-level=3
+
+[postgres@ip-172-31-17-195 data]$ pgbackrest --config=/var/lib/pgsql/pgbackrest_restore.conf --stanza=demo_stanza --log-level-console=info restore 
+2024-07-16 00:00:24.859 P00   INFO: restore command begin 2.46: --config=/var/lib/pgsql/pgbackrest_restore.conf --exec-id=424750-e8de8f58 --log-level-console=info --pg1-path=/var/lib/pgsql/data_15 --process-max=2 --repo1-cipher-pass=<redacted> --repo1-cipher-type=aes-256-cbc --repo1-path=/var/lib/pgbackrest --stanza=demo_stanza
+2024-07-16 00:00:24.872 P00   INFO: repo1: restore backup set 20240715-233332F_20240715-233520I, recovery will start at 2024-07-15 23:35:20
+2024-07-16 00:00:24.872 P00   INFO: remap data directory to '/var/lib/pgsql/data_15'
+2024-07-16 00:00:26.975 P00   INFO: write updated /var/lib/pgsql/data_15/postgresql.auto.conf
+2024-07-16 00:00:26.979 P00   INFO: restore global/pg_control (performed last to ensure aborted restores cannot be started)
+2024-07-16 00:00:26.980 P00   INFO: restore size = 37.9MB, file total = 1600
+2024-07-16 00:00:26.981 P00   INFO: restore command end: completed successfully (2124ms)
+
+[postgres@ip-172-31-17-195 data]$ /usr/pgsql-15/bin/pg_ctl start -D /var/lib/pgsql/data_15
+waiting for server to start....2024-07-16 00:01:15.366 UTC [424782] LOG:  redirecting log output to logging collector process
+2024-07-16 00:01:15.366 UTC [424782] HINT:  Future log output will appear in directory "log".
+ done
+server started
+
 
