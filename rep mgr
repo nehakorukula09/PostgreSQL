@@ -1,0 +1,30 @@
+sudo apt-get install postgresql-<version>-repmgr
+
+On Primary:
+postgres=# CREATE USER repmgr;
+CREATE ROLE
+postgres=# CREATE DATABASE repmgr;
+CREATE DATABASE
+
+pg_hba configuration:
+# repmgr configuration:
+local   replication   repmgr                              trust
+host    replication   repmgr      127.0.0.1/32            trust
+host    replication   repmgr      172.31.95.0/32          trust
+
+postgres@ip-172-31-95-248:~$ cat repmgr.conf
+cluster='failovertest'
+
+node_id=1
+
+node_name=<>
+
+conninfo='host=<> user=repmgr dbname=repmgr connect_timeout=2'
+
+data_directory='/var/lib/postgresql/16/main/'
+
+failover=automatic
+
+promote_command='/usr/lib/postgresql/16/bin/repmgr standby promote -f /var/lib/postgresql/repmgr.conf --log-to-file'
+
+follow_command='/usr/lib/postgresql/16/bin/repmgr standby follow -f /var/lib/postgresql/repmgr.conf --log-to-file --upstream-node-id=%n'
