@@ -42,6 +42,7 @@ Write/Optimize queries
 --> clustered and non-clustered index
 
 Writing a query using JOINS , subquery , UNION ALL, ORDER BY , GROUP BY , loop using with , case
+Query to find missed index and unused index.
 
 
 
