@@ -1,1 +1,4 @@
+Remote connection to a host.
 ssh -i /home/Downloads/.../<key> username@hostname  
+
+System administration tasks:
