@@ -1,0 +1,1 @@
+ssh -i /home/Downloads/.../<key> username@hostname  
