@@ -2,3 +2,47 @@ Remote connection to a host.
 ssh -i /home/Downloads/.../<key> username@hostname  
 
 System administration tasks:
+Linux doc
+https://github.com/nehakorukula09/MySQL/blob/main/Linux%20Basics%20for%20a%20DB%20Adminstrator
+
+Disk space handling
+https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/configuring_and_managing_logical_volumes/managing-lvm-physical-volumes_configuring-and-managing-logical-volumes#overview-of-physical-volumes_managing-lvm-physical-volumes
+
+Systemctl utilities
+
+Reload & Restart prerequisties and confirmation
+
+PostgreSQL:
+
+Create/ ALTER / DROP users
+Performance Tuning 
+--> Memory config : shared buffers , effective cache size , work_mem (max_connections) and maintenance work_mem
+--> Autovacuum settings
+--> Logging analysis -> pgbadger (Log parameters tuning)
+--> Parameters tuning , which needs restart/ reload
+--> pg_hba.conf [priority of access from top to bottom approach]
+--> postgresql.comf [priority of access from bottom to top approach]
+Automatic failover setup (repmgr)
+Backups (pg_basebackup)
+PITR (pg_basebackup)
+archive settings -> outside the data directory
+--> archive_command = 'test ! -f /mnt/server/archivedir/%f && cp %p /mnt/server/archivedir/%f'  # Unix
+-->archive_command = 'copy "%p" "C:\\server\\archivedir\\%f"'  # Windows
+-->If archive storage size is a concern, you can use gzip to compress the archive files:
+-->archive_command = 'gzip < %p > /mnt/server/archivedir/%f.gz'
+-->You will then need to use gunzip during recovery:
+-->restore_command = 'gunzip < /mnt/server/archivedir/%f.gz > %p'
+Logical Replication setup
+
+Write/Optimize queries
+--> EXPLAIN 
+--> EXPAIN ANALYSE
+--> Indexing (sequential / index-based scan)
+--> random_page_cost
+--> clustered and non-clustered index
+
+Writing a query using JOINS , subquery , UNION ALL, ORDER BY , GROUP BY , loop using with , case
+
+
+
+
