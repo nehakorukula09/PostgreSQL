@@ -44,6 +44,14 @@ Write/Optimize queries
 Writing a query using JOINS , subquery , UNION ALL, ORDER BY , GROUP BY , loop using with , case
 Query to find missed index and unused index.
 
+==================
+cd /opt/homebrew/bin/
+PATH=$PATH:/opt/homebrew/bin
+cd
+touch .zshrc
+echo export PATH=$PATH:/opt/homebrew/bin >> .zshrc
+
+
 
 
 
