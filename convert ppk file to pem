@@ -1,0 +1,9 @@
+On MAC :
+
+Putty Intallation:
+brew install putty
+puttygen nnk_pgsql_putty.ppk -O private-openssh -o nnk_pgsql_putty.pem
+
+  
+Using Open SSH:
+ssh -i "nnk_pgsql_putty.pem" user@hostname
