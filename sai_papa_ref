@@ -45,6 +45,11 @@ Writing a query using JOINS , subquery , UNION ALL, ORDER BY , GROUP BY , loop u
 Query to find missed index and unused index.
 
 ==================
+
+Install brew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+zshrc issue
 cd /opt/homebrew/bin/
 PATH=$PATH:/opt/homebrew/bin
 cd
