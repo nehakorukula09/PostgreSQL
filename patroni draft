@@ -139,6 +139,9 @@ Fix1:
 sudo systemctl stop firewalld.service
 sudo systemctl disable firewalld.service
 
+ubuntu@node1:~$ sudo ufw disable
+Firewall stopped and disabled on system startup
+
 Fix2:
 ubuntu@node-3:~$ sudo systemctl stop etcd
 ubuntu@node-3:~$ sudo systemctl disable etcd
