@@ -1,0 +1,149 @@
+Ubuntu OS:
+
+Node1 : 3.80.165.236 / 172.31.33.143
+Node2 : 54.92.156.23 / 172.31.44.168
+Node3 : 35.175.205.82 / 172.31.32.44
+Node4 [Haproxy] : 3.82.59.133 / 172.31.33.93
+
+Perform on all 3 nodes:
+sudo apt update
+Install postgresql.
+sudo apt install postgresql [Latest version]
+
+Install Python and auxilary packages for Patroni and ETCD.
+sudo apt install python3-pip python3-dev binutils
+sudo apt install patroni etcd etcd-server etcd-client pgbackrest
+
+Stop and disable all installed services
+ubuntu@ip-172-31-33-143:~$ sudo systemctl stop etcd patroni postgresql
+ubuntu@ip-172-31-33-143:~$ sudo systemctl disable etcd patroni postgresql
+
+Even though Patroni can use an existing Postgres installation, remove the data directory to force it to initialize a new Postgres cluster instance.
+sudo rm -rf /var/lib/postgresql/14/main/
+
+
+node1:
+sudo hostnamectl set-hostname node-1
+sudo vi /etc/hosts
+172.31.33.143 node-1
+172.31.44.168 node-2
+172.31.32.44 node-3
+
+Configure etcd :
+etcd is deployed as a cluster for fault-tolerance and requires an odd number of members (n/2+1) 
+to agree on updates to the cluster state
+
+1. Create configuration file or use default one.
+/etc/default/etcd
+name: 'node-1'
+initial-cluster-token: PostgreSQL_HA_Cluster_1
+initial-cluster-state: new
+initial-cluster: node1=http://172.31.33.143:2380
+data-dir: /var/lib/etcd
+initial-advertise-peer-urls: http://172.31.33.143:2380 
+listen-peer-urls: http://172.31.33.143:2380
+advertise-client-urls: http://172.31.33.143:2379
+listen-client-urls: http://172.31.33.143:2379
+
+2. Start and enable ETCD service
+sudo systemctl enable --now etcd
+sudo systemctl start etcd
+sudo systemctl status etcd
+
+3. Check the etcd cluster members
+sudo etcdctl member list
+
+4. Add the node2 to the cluster
+sudo etcdctl member add node2 http://172.31.44.168:2380
+Added member named node2 with ID 7d7abf4a98728be9 to cluster
+
+ETCD_NAME="node2"
+ETCD_INITIAL_CLUSTER="node2=http://172.31.44.168:2380,node-1=http://localhost:2380"
+ETCD_INITIAL_CLUSTER_STATE="existing"
+
+5. Add node3 to the cluster
+sudo etcdctl member add node3 http://172.31.32.44:2380
+Added member named node3 with ID 1ee22d2dd1c19466 to cluster
+
+ETCD_NAME="node3"
+ETCD_INITIAL_CLUSTER="node3=http://172.31.32.44:2380,node-3=http://localhost:2380"
+ETCD_INITIAL_CLUSTER_STATE="existing"
+
+node2:
+sudo hostnamectl set-hostname node-2
+sudo vi /etc/hosts
+172.31.33.143 node-1
+172.31.44.168 node-2
+172.31.32.44 node-3
+sudo apt update
+Install postgresql.
+
+1. Create configuration file or use default one.
+/etc/default/etcd
+name: 'node-2'
+initial-cluster-token: PostgreSQL_HA_Cluster_1
+initial-cluster-state: existing
+initial-cluster: node1=http://172.31.33.143:2380,node2=http://172.31.44.168:2380
+data-dir: /var/lib/etcd
+initial-advertise-peer-urls: http://172.31.44.168:2380
+listen-peer-urls: http://172.31.44.168:2380
+advertise-client-urls: http://172.31.44.168:2379
+listen-client-urls: http://172.31.44.168:2379
+
+2. Start and enable ETCD service
+sudo systemctl enable --now etcd
+sudo systemctl start etcd
+sudo systemctl status etcd
+
+node3:
+sudo hostnamectl set-hostname node-3
+sudo vi /etc/hosts
+172.31.33.143 node-1
+172.31.44.168 node-2
+172.31.32.44 node-3
+sudo apt update
+Install postgresql.
+
+1. Create configuration file or use default one.
+/etc/default/etcd
+name: 'node-3'
+initial-cluster-token: PostgreSQL_HA_Cluster_1
+initial-cluster-state: existing
+initial-cluster: node1=http://172.31.33.143:2380,node2=http://172.31.44.168:2380
+,node3=http://172.31.32.44:2380
+data-dir: /var/lib/etcd
+initial-advertise-peer-urls: http://172.31.32.44:2380
+listen-peer-urls: http://172.31.32.44:2380
+advertise-client-urls: http://172.31.32.44:2379
+listen-client-urls: http://172.31.32.44:2379
+
+2. Start and enable ETCD service
+sudo systemctl enable --now etcd
+sudo systemctl start etcd
+sudo systemctl status etcd
+
+haproxy-node:
+sudo hostnamectl set-hostname haproxy-node
+sudo vi /etc/hosts
+172.31.33.143 node-1
+172.31.44.168 node-2
+172.31.32.44 node-3
+172.31.33.93 haproxy-node
+
+Errors:
+Aug 21 00:19:40 node-1 etcd[6326]: health check for peer 7d7abf4a98728be9 could not connect: dial tcp 172.31.44.168:2380: connect: connection refused (prober >
+Aug 21 00:19:40 node-1 etcd[6326]: health check for peer 7d7abf4a98728be9 could not connect: dial tcp 172.31.44.168:2380: connect: connection refused (prober >
+Aug
+
+Fix1:
+sudo systemctl stop firewalld.service
+sudo systemctl disable firewalld.service
+
+Fix2:
+ubuntu@node-3:~$ sudo systemctl stop etcd
+ubuntu@node-3:~$ sudo systemctl disable etcd
+sudo apt remove etcd etcd-server etcd-client
+sudo apt install etcd etcd-server etcd-client
+ubuntu@node-1:~$ sudo systemctl stop etcd
+ubuntu@node-1:~$ sudo systemctl disable etcd
+
