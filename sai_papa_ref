@@ -90,3 +90,5 @@ Ver Cluster Port Status Owner    Data directory              Log file
 
 ===============
 
+Autofailover scenario -> using repmgr
+(same and different port)
