@@ -60,14 +60,22 @@ echo export PATH=$PATH:/opt/homebrew/bin >> .zshrc
 
 ==============
 Same node replication setup
+PG 16 
+main - 5432
+neha_test - 5434
+check postgresql conf parameters
+postgres@ip-172-31-93-114:~$ pg_basebackup -p 5432 -U replica -D /var/lib/postgresql/16/neha_test -v -P -R -X stream -c fast -W -h localhost
+
 Different node replication setup
-Port 5432 issues 
-Major and Minor upgrade
-In Ubuntu , redtore the deleted the config files
+Port 5432 issues on EC2
+
+In Ubuntu , restore the deleted the config files
+Ans: By Using pg_createcluster and pg_lsclusters.
 
 ================
 
 One more DB cluster creation  on same node.
+
 postgres@ip-172-31-95-248:~$ mkdir nnk_test
 postgres@ip-172-31-95-248:~$ chmod 700 nnk_test
 postgres@ip-172-31-95-248:~$ pg_createcluster 16 test -D /var/lib/postgresql/16/main
@@ -79,3 +87,6 @@ Ver Cluster Port Status Owner    Data directory              Log file
 ubuntu@ip-172-31-95-248:~$ pg_lsclusters 
 Ver Cluster Port Status Owner    Data directory              Log file
 16  test    5432 online postgres /var/lib/postgresql/16/main /var/log/postgresql/postgresql-16-test.log
+
+===============
+
