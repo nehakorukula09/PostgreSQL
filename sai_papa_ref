@@ -58,6 +58,24 @@ touch .zshrc
 echo export PATH=$PATH:/opt/homebrew/bin >> .zshrc
 
 
+==============
+Same node replication setup
+Different node replication setup
+Port 5432 issues 
+Major and Minor upgrade
+In Ubuntu , redtore the deleted the config files
 
+================
 
+One more DB cluster creation  on same node.
+postgres@ip-172-31-95-248:~$ mkdir nnk_test
+postgres@ip-172-31-95-248:~$ chmod 700 nnk_test
+postgres@ip-172-31-95-248:~$ pg_createcluster 16 test -D /var/lib/postgresql/16/main
+Warning: systemd does not know about the new cluster yet. Operations like "service postgresql start" will not handle it. To fix, run:
+  sudo systemctl daemon-reload
+Ver Cluster Port Status Owner    Data directory              Log file
+16  test    5432 down   postgres /var/lib/postgresql/16/main /var/log/postgresql/postgresql-16-test.log
 
+ubuntu@ip-172-31-95-248:~$ pg_lsclusters 
+Ver Cluster Port Status Owner    Data directory              Log file
+16  test    5432 online postgres /var/lib/postgresql/16/main /var/log/postgresql/postgresql-16-test.log
