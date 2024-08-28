@@ -1,0 +1,18 @@
+On primary:
+
+Step 1: northwind=# ALTER SYSTEM SET wal_level='logical';
+ALTER SYSTEM
+northwind=# CREATE USER replica_user WITH REPLICATION;
+CREATE ROLE
+
+Step 2: ubuntu@ip-172-31-93-114:/tmp$ sudo systemctl restart postgresql@16-main.service 
+
+Stpe 3: northwind=# CREATE PUBLICATION nnk_pub FOR ALL TABLES;
+CREATE PUBLICATION
+
+Note : Of course we could specify publication targets by calling table names. Also, we can specify which actions should be logically replicated. For example:
+CREATE PUBLICARION nnk_pub FOR TABLE table1, table2;
+CREATE PUBLICARION my_publication FOR TABLE table1, table2 WITH (publish = 'insert', 'update');
+
+Step 4:
+
