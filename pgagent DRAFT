@@ -1,0 +1,13 @@
+On Ubuntu installation:
+sudo apt-get -y install pgagent
+
+postgres=# CREATE EXTENSION pgagent;
+CREATE EXTENSION
+postgres=# \dx pgagent 
+               List of installed extensions
+  Name   | Version | Schema  |        Description         
+---------+---------+---------+----------------------------
+ pgagent | 4.2     | pgagent | A PostgreSQL job scheduler
+(1 row)
+
+
