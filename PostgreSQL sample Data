@@ -1,2 +1,42 @@
 https://wiki.postgresql.org/wiki/Sample_Databases
 sudo wget http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.csv
+
+-- Download file "pp-complete.csv", which has all records.
+-- If schema changes/field added, consult: https://www.gov.uk/guidance/about-the-price-paid-data
+
+postgres=# CREATE DATABASE land_registry;
+CREATE DATABASE
+postgres=# \c land_registry 
+psql (13.16, server 15.8)
+WARNING: psql major version 13, server major version 15.
+         Some psql features might not work.
+You are now connected to database "land_registry" as user "postgres".
+
+land_registry=# CREATE TABLE land_registry_price_paid_uk(
+  transaction uuid,
+  price numeric,
+  transfer_date date,
+  postcode text,
+  property_type char(1),
+  newly_built boolean,
+  duration char(1),
+  paon text,
+  saon text,
+  street text,
+  locality text,
+  city text,
+  district text,
+  county text,
+  ppd_category_type char(1),
+  record_status char(1));
+CREATE TABLE
+
+-- Copy CSV data, with appropriate munging:
+land_registry=# COPY land_registry_price_paid_uk FROM '/var/lib/pgsql/pp-complete.csv' with (format csv, encoding 'win1252', header false, null '', quote '"', force_null (postcode, saon, paon, street, locality, city, district));
+COPY 29386564
+Time: 110657.457 ms (01:50.657)
+
+
+
+
+
