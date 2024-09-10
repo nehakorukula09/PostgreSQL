@@ -1,0 +1,2 @@
+https://wiki.postgresql.org/wiki/Sample_Databases
+sudo wget http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.csv
