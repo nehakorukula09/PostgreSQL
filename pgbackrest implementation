@@ -1,0 +1,111 @@
+RHEL:
+
+1. Install PostgreSQL:
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+sudo dnf install -y postgresql15-server
+sudo /usr/pgsql-15/bin/postgresql-15-setup initdb
+sudo systemctl enable postgresql-15
+sudo systemctl start postgresql-15
+
+2. Primary and Replica are set with physical streaming Replication.
+3. pgbackrest installation
+On Backup node:
+
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+sudo dnf install -y postgresql15-server
+or
+sudo yum install postgresql-libs libssh2
+
+On All Nodes:
+[ec2-user@ip-172-31-24-102 ~]$ sudo yum install pgbackrest
+Updating Subscription Management repositories.
+Unable to read consumer identity
+
+This system is not registered with an entitlement server. You can use "rhc" or "subscription-manager" to register.
+
+Last metadata expiration check: 0:02:59 ago on Tue 10 Sep 2024 01:34:31 AM UTC.
+Error: 
+ Problem: cannot install the best candidate for the job
+  - nothing provides libssh2 needed by pgbackrest-2.53.1-1PGDG.rhel9.x86_64 from pgdg-common
+  - nothing provides libssh2.so.1()(64bit) needed by pgbackrest-2.53.1-1PGDG.rhel9.x86_64 from pgdg-common
+(try to add '--skip-broken' to skip uninstallable packages or '--nobest' to use not only best candidate packages)
+
+Enable EPEL repo on Red Hat Enterprise Linux 9
+First, enable the RHEL provided Code Ready Builder repository with this command:
+sudo subscription-manager repos --enable codeready-builder-for-rhel-9-$(arch)-rpms
+Next, run the following command to enable EPEL on RHEL 9:
+sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+Install libssh2
+sudo dnf install libssh2
+
+On Backup node:
+1. Install needed directories
+sudo mkdir -p /data/backups && sudo chown postgres:postgres /data/backups && sudo chmod 755 /data/backups
+sudo mkdir -p -m 770 /var/log/pgbackrest
+sudo chown postgres:postgres /var/log/pgbackrest
+sudo mkdir -p /etc/pgbackrest
+sudo mkdir -p /etc/pgbackrest/conf.d
+sudo touch /etc/pgbackrest/pgbackrest.conf
+sudo chmod 640 /etc/pgbackrest/pgbackrest.conf
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+2. Create configuration files:
+cat << EOF | sudo tee -a /etc/pgbackrest/pgbackrest.conf
+[global]
+compress-type=lz4
+process-max=2
+start-fast=y
+log-level-file=info
+spool-path=/var/spool/pgbackrest
+backup-standby=y
+repo1-retention-full=2
+repo-path=/data/backups
+
+[cls00]
+pg1-path=/var/lib/pgsql/15/data
+pg1-host=54.175.127.129
+pg1-host-user=postgres
+pg2-path=/var/lib/pgsql/15/data
+pg2-host=18.209.51.157
+pg2-host-user=postgres
+lock-path=/tmp/pgbackrest/stanza_lock
+EOF" 
+****Change permissions accordingly.
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+On DB nodes:
+
+1. Install needed directories
+sudo mkdir -p -m 770 /var/log/pgbackrest
+sudo chown postgres:postgres /var/log/pgbackrest
+sudo mkdir -p /etc/pgbackrest
+sudo mkdir -p /etc/pgbackrest/conf.d
+sudo touch /etc/pgbackrest/pgbackrest.conf
+sudo chmod 640 /etc/pgbackrest/pgbackrest.conf
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+2. Create configuration file:
+cat << EOF | sudo tee -a /etc/pgbackrest/pgbackrest.conf
+[land_registry]
+pg1-path=/var/lib/pgsql/15/data
+pg1-host-user=postgres
+
+[global]
+log-level-file=detail
+repo1-host=54.158.238.43
+repo1-host-user=postgres
+repo-path=/data/backups
+spool-path=/var/spool/pgbackrest
+compress-type=lz4
+process-max=2
+archive-timeout=150
+EOF
+**** Change permissions accordingly.
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+4. Create Stanza:
+pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info stanza-create
+
+
+
+
