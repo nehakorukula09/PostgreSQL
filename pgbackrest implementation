@@ -1,5 +1,8 @@
 RHEL:
 
+Note: SETUP SSH passwordless connection for the nodes and backup node vice-versa.
+ssh-keygen -t rsa
+
 1. Install PostgreSQL:
 sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 sudo dnf install -y postgresql15-server
@@ -61,7 +64,7 @@ backup-standby=y
 repo1-retention-full=2
 repo-path=/data/backups
 
-[cls00]
+[land_registry]
 pg1-path=/var/lib/pgsql/15/data
 pg1-host=54.175.127.129
 pg1-host-user=postgres
@@ -104,7 +107,92 @@ EOF
 sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
 
 4. Create Stanza:
-pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info stanza-create
+On Backup node:
+[postgres@ip-172-31-24-102 .ssh]$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info stanza-create
+2024-09-11 00:18:18.542 P00   INFO: stanza-create command begin 2.53.1: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5069-b82d24c4 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --pg1-host=54.175.127.129 --pg2-host=18.209.51.157 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/pgsql/15/data --pg2-path=/var/lib/pgsql/15/data --repo1-path=/data/backups --stanza=land_registry
+2024-09-11 00:18:20.450 P00   INFO: stanza-create for stanza 'land_registry' on repo1
+2024-09-11 00:18:20.673 P00   INFO: stanza-create command end: completed successfully (2133ms)
+On Primary node:
+[postgres@ip-172-31-20-100 .ssh]$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info stanza-create
+2024-09-11 00:19:47.086 P00   INFO: stanza-create command begin 2.53.1: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=8536-64c9dd16 --log-level-console=info --log-level-file=detail --pg1-path=/var/lib/pgsql/15/data --repo1-host=54.158.238.43 --repo1-host-user=postgres --repo1-path=/data/backups --stanza=land_registry
+2024-09-11 00:19:47.694 P00   INFO: stanza-create for stanza 'land_registry' on repo1
+2024-09-11 00:19:47.997 P00   INFO: stanza 'land_registry' already exists on repo1 and is valid
+2024-09-11 00:19:48.097 P00   INFO: stanza-create command end: completed successfully (1012ms)
+
+5. Change archive settings:
+On both Primary & Standby Node:
+[postgres@ip-172-31-20-100 .ssh]$ psql -c "ALTER SYSTEM SET archive_command = '/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry archive-push %p'";
+ALTER SYSTEM
+[postgres@ip-172-31-28-17 .ssh]$ psql -c "ALTER SYSTEM SET archive_mode='on'";
+ALTER SYSTEM
+[postgres@ip-172-31-20-100 .ssh]$ psql -c "SELECT pg_reload_conf();"
+ pg_reload_conf 
+----------------
+ t
+(1 row)
+If modifying archive_mode , then restart or reload should be fine.
+sudo systemctl restart postgresql-15
+
+Validate:
+[postgres@ip-172-31-20-100 ~]$ psql -c "show archive_mode;"
+ archive_mode 
+--------------
+ on
+(1 row)
+
+[postgres@ip-172-31-20-100 ~]$ psql -c "show archive_command;"
+                                         archive_command                                         
+-------------------------------------------------------------------------------------------------
+ /bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry archive-push %p
+(1 row)
+
+6.Verify pgbackrest and archive
+[postgres@ip-172-31-24-102 .ssh]$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=detail check
+2024-09-11 00:28:48.536 P00   INFO: check command begin 2.53.1: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5158-6f624568 --log-level-console=detail --log-level-file=info --pg1-host=54.175.127.129 --pg2-host=18.209.51.157 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/pgsql/15/data --pg2-path=/var/lib/pgsql/15/data --repo1-path=/data/backups --stanza=land_registry
+2024-09-11 00:28:50.409 P00   INFO: check repo1 (standby)
+2024-09-11 00:28:50.410 P00   INFO: switch wal not performed because this is a standby
+2024-09-11 00:28:50.411 P00   INFO: check repo1 configuration (primary)
+2024-09-11 00:28:50.614 P00   INFO: check repo1 archive for WAL (primary)
+2024-09-11 00:28:51.215 P00   INFO: WAL segment 0000000100000001000000B9 successfully archived to '/data/backups/archive/land_registry/15-1/0000000100000001/0000000100000001000000B9-1ef48f4042d07e32ea4cb0ea6a5bacc677f2ec35.lz4' on repo1
+2024-09-11 00:28:51.419 P00   INFO: check command end: completed successfully (2885ms)
+
+
+7. Trigger FULL Backup:
+[postgres@ip-172-31-24-102 .ssh]$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info --type=full backup
+2024-09-11 00:27:09.950 P00   INFO: backup command begin 2.53.1: --compress-type=lz4 --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5109-9211e8f3 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --pg1-host=54.175.127.129 --pg2-host=18.209.51.157 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/pgsql/15/data --pg2-path=/var/lib/pgsql/15/data --process-max=2 --repo1-path=/data/backups --repo1-retention-full=2 --stanza=land_registry --start-fast --type=full
+2024-09-11 00:27:12.010 P00   INFO: execute non-exclusive backup start: backup begins after the requested immediate checkpoint completes
+2024-09-11 00:27:12.621 P00   INFO: backup start archive = 0000000100000001000000B8, lsn = 1/B8000028
+2024-09-11 00:27:12.621 P00   INFO: check archive for prior segment 0000000100000001000000B7
+2024-09-11 00:28:17.425 P00   INFO: execute non-exclusive backup stop and wait for all WAL segments to archive
+2024-09-11 00:28:17.631 P00   INFO: backup stop archive = 0000000100000001000000B8, lsn = 1/B8000138
+2024-09-11 00:28:17.634 P00   INFO: check archive for segment(s) 0000000100000001000000B8:0000000100000001000000B8
+2024-09-11 00:28:18.047 P00   INFO: new backup label = 20240911-002711F
+2024-09-11 00:28:18.100 P00   INFO: full backup size = 8GB, file total = 1581
+2024-09-11 00:28:18.100 P00   INFO: backup command end: completed successfully (68152ms)
+2024-09-11 00:28:18.101 P00   INFO: expire command begin 2.53.1: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5109-9211e8f3 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --repo1-path=/data/backups --repo1-retention-full=2 --stanza=land_registry
+2024-09-11 00:28:18.209 P00   INFO: expire command end: completed successfully (109ms)
+
+8. Check status of the Backup.
+[postgres@ip-172-31-24-102 .ssh]$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=detail info
+stanza: land_registry
+    status: ok
+    cipher: none
+
+    db (current)
+        wal archive min/max (15): 0000000100000001000000B7/0000000100000001000000B9
+
+        full backup: 20240911-002711F
+            timestamp start/stop: 2024-09-11 00:27:11+00 / 2024-09-11 00:28:17+00
+            wal start/stop: 0000000100000001000000B8 / 0000000100000001000000B8
+            database size: 8GB, database backup size: 8GB
+            repo1: backup set size: 4.2GB, backup size: 4.2GB
+
+
+
+
+
+
+
 
 
 
