@@ -1,4 +1,4 @@
-RHEL:
+OS RHEL:
 
 Note: SETUP SSH passwordless connection for the nodes and backup node vice-versa.
 ssh-keygen -t rsa
@@ -198,6 +198,10 @@ Retention settings:
 [postgres@ip-172-31-24-102 .ssh]$ cat /etc/pgbackrest/pgbackrest.conf | grep -i retention
 repo1-retention-full=2
 repo1-retention-diff=2
+
+============================
+Restore:
+
 
 
 
