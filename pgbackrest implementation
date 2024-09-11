@@ -188,9 +188,16 @@ stanza: land_registry
             repo1: backup set size: 4.2GB, backup size: 4.2GB
 
 
+crontab scheduling: (Test setup)
+Full Backup once in a day at 7:00AM and diff backups 30mins
+[postgres@ip-172-31-24-102 .ssh]$ crontab -l
+0 7 * * * pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info --type=full backup
+*/30 * * * * pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info --type=diff backup
 
-
-
+Retention settings:
+[postgres@ip-172-31-24-102 .ssh]$ cat /etc/pgbackrest/pgbackrest.conf | grep -i retention
+repo1-retention-full=2
+repo1-retention-diff=2
 
 
 
