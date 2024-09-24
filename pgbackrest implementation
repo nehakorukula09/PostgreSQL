@@ -1,4 +1,4 @@
-OS RHEL:
+# OS RHEL:
 
 Note: SETUP SSH passwordless connection for the nodes and backup node vice-versa.
 ssh-keygen -t rsa
@@ -19,7 +19,7 @@ sudo dnf install -y postgresql15-server
 or
 sudo yum install postgresql-libs libssh2
 
-On All Nodes:
+## On All Nodes: ##
 [ec2-user@ip-172-31-24-102 ~]$ sudo yum install pgbackrest
 Updating Subscription Management repositories.
 Unable to read consumer identity
