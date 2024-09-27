@@ -66,33 +66,33 @@ This process involves configuring New(Restoring) PostgreSQL host on RHEL/CentOS 
 - **2. Validate the cluster status, if Database is running.**
   Use below steps to validate the DB running status if it is running or proceed with the restore in an empty Data Directory.
   - **1. If RHEL/CentOS operating system.**
-        ```bash
-        psql -c "show data_directory;"
-        ```
-        Sample Output:
-        ```bash
-        data_directory     
-        ------------------------
-        /var/lib/pgsql/15/data
-        (1 row)
-        ```
-        ```bash
-        {BINDIR}/pg_ctl -D /var/lib/pgsql/15/data status
-        ```
-        Sample Output:
-        ```bash
-        pg_ctl: server is running (PID: 8593)
-        /usr/pgsql-15/bin/postgres "-D" "/var/lib/pgsql/15/data/"
-        ```
+  ```bash
+  psql -c "show data_directory;"
+  ```
+  Sample Output:
+  ```bash
+  data_directory     
+  ------------------------
+  /var/lib/pgsql/15/data
+  (1 row)
+  ```
+  ```bash
+  {BINDIR}/pg_ctl -D /var/lib/pgsql/15/data status
+  ```
+  Sample Output:
+  ```bash
+  pg_ctl: server is running (PID: 8593)
+  /usr/pgsql-15/bin/postgres "-D" "/var/lib/pgsql/15/data/"
+  ```
   - **2. If Ubuntu/Debian operating system.**
-        ```bash
-        pg_lsclusters 
-        ```
-        Sample Output:
-        ```
-        Ver Cluster Port Status Owner    Data directory              Log file
-        14  main    5432 online postgres /var/lib/postgresql/14/main /var/log/postgresql/postgresql-14-main.log
-        ```
+  ```bash
+  pg_lsclusters 
+  ```
+  Sample Output:
+  ```
+  Ver Cluster Port Status Owner    Data directory              Log file
+  14  main    5432 online postgres /var/lib/postgresql/14/main /var/log/postgresql/postgresql-14-main.log
+  ```
 - **3. Stop the Database and Clear the contents of Data Directory.**
 
 
