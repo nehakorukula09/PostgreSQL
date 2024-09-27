@@ -70,7 +70,7 @@ This process involves configuring New(Restoring) PostgreSQL host on RHEL/CentOS 
         psql -c "show data_directory;"
         ```
         Sample Output:
-        ```
+        ```bash
         data_directory     
         ------------------------
         /var/lib/pgsql/15/data
@@ -80,7 +80,7 @@ This process involves configuring New(Restoring) PostgreSQL host on RHEL/CentOS 
         {BINDIR}/pg_ctl -D /var/lib/pgsql/15/data status
         ```
         Sample Output:
-        ```
+        ```bash
         pg_ctl: server is running (PID: 8593)
         /usr/pgsql-15/bin/postgres "-D" "/var/lib/pgsql/15/data/"
         ```
