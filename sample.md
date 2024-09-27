@@ -66,16 +66,16 @@ This process involves configuring New(Restoring) PostgreSQL host on RHEL/CentOS 
 - **2. Validate the cluster status.**
   
   - **1. If RHEL/CentOS operating system.**
-        ```
-        [postgres@ip-172-31-20-100 ~]$ psql -c "show data_directory;"
-        data_directory     
-        ------------------------
-        /var/lib/pgsql/15/data
-        (1 row)
-        ```
-        ```
-        [postgres@ip-172-31-20-100 ~]$ /usr/pgsql-15/bin/pg_ctl -D /var/lib/pgsql/15/data status
-        pg_ctl: server is running (PID: 8593)
-        /usr/pgsql-15/bin/postgres "-D" "/var/lib/pgsql/15/data/"
-        ```
+    ```
+    [postgres@ip-172-31-20-100 ~]$ psql -c "show data_directory;"
+    data_directory     
+    ------------------------
+    /var/lib/pgsql/15/data
+    (1 row)
+    ```
+    ```
+    [postgres@ip-172-31-20-100 ~]$ /usr/pgsql-15/bin/pg_ctl -D /var/lib/pgsql/15/data status
+    pg_ctl: server is running (PID: 8593)
+    /usr/pgsql-15/bin/postgres "-D" "/var/lib/pgsql/15/data/"
+    ```
   - **2. If Ubuntu/Debian operating system.**
