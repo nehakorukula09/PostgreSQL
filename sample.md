@@ -80,6 +80,7 @@ This process involves configuring New(Restoring) PostgreSQL host on RHEL/CentOS 
   /var/lib/pgsql/15/data
   (1 row)
   ```
+  Command to check the cluster status:
   ```bash
   {BINDIR}/pg_ctl -D /var/lib/pgsql/15/data status
   ```
@@ -89,6 +90,7 @@ This process involves configuring New(Restoring) PostgreSQL host on RHEL/CentOS 
   /usr/pgsql-15/bin/postgres "-D" "/var/lib/pgsql/15/data/"
   ```
   - **If Ubuntu/Debian operating system.**
+  Command to check the cluster status:
   ```bash
   pg_lsclusters 
   ```
