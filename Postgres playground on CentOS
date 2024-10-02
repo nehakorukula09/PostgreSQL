@@ -91,3 +91,23 @@ Error:
 Errors during downloading metadata for repository 'pgdg-common':
   - Curl error (37): Couldn't read a file:// file for file:///etc/pki/rpm-gpg/PGDG-RPM-GPG-KEY-RHEL7 [Couldn't open file /etc/pki/rpm-gpg/PGDG-RPM-GPG-KEY-RHEL7]
 Error: Failed to retrieve GPG key for repo 'pgdg-common': Curl error (37): Couldn't read a file:// file for file:///etc/pki/rpm-gpg/PGDG-RPM-GPG-KEY-RHEL7 [Couldn't open file /etc/pki/rpm-gpg/PGDG-RPM-GPG-KEY-RHEL7]
+
+
+
+
+=======================
+pgbackrest installation
+
+Install the repo :
+ sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+
+Disable built-in-postgres:
+sudo dnf -qy module disable postgresql
+
+Install libssh2 package
+sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+sudo dnf install libssh2
+
+Install pgbackrest
+ sudo dnf install pgbackrest
+
