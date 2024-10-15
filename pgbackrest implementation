@@ -258,14 +258,8 @@ Output:
 3. Start the Service.
 
 ============================
-Restore single Database:
-
-On primary:
-postgres=# CREATE DATABASE land_sales WITH  template land_registry;
-CREATE DATABASE
-.........
-
-
+packages for download:
+https://mirror.cs.uchicago.edu/postgres/pool/main/p/pgbackrest/
 
 
 
