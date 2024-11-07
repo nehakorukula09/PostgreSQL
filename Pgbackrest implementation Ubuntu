@@ -132,15 +132,18 @@ postgres@ip-172-31-91-122:~$ psql -c "show archive_command;"
  /bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry archive-push %p
 (1 row)
 
-6.Verify pgbackrest and archive
-[postgres@ip-172-31-24-102 .ssh]$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=detail check
-2024-09-11 00:28:48.536 P00   INFO: check command begin 2.53.1: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5158-6f624568 --log-level-console=detail --log-level-file=info --pg1-host=54.175.127.129 --pg2-host=18.209.51.157 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/pgsql/15/data --pg2-path=/var/lib/pgsql/15/data --repo1-path=/data/backups --stanza=land_registry
-2024-09-11 00:28:50.409 P00   INFO: check repo1 (standby)
-2024-09-11 00:28:50.410 P00   INFO: switch wal not performed because this is a standby
-2024-09-11 00:28:50.411 P00   INFO: check repo1 configuration (primary)
-2024-09-11 00:28:50.614 P00   INFO: check repo1 archive for WAL (primary)
-2024-09-11 00:28:51.215 P00   INFO: WAL segment 0000000100000001000000B9 successfully archived to '/data/backups/archive/land_registry/15-1/0000000100000001/0000000100000001000000B9-1ef48f4042d07e32ea4cb0ea6a5bacc677f2ec35.lz4' on repo1
-2024-09-11 00:28:51.419 P00   INFO: check command end: completed successfully (2885ms)
+6.Verify pgbackrest and archive ERRORRRRRRRRRRRRRRRRR -- to be checked.
+postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=detail check
+2024-11-07 05:01:28.865 P00   INFO: check command begin 2.54.0: --backup-standby=y --config=/etc/pgbackrest/pgbackrest.conf --exec-id=9577-0660b484 --log-level-console=detail --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
+2024-11-07 05:01:30.411 P00   INFO: check repo1 (standby)
+2024-11-07 05:01:30.412 P00   INFO: switch wal not performed because this is a standby
+2024-11-07 05:01:30.414 P00   INFO: check repo1 configuration (primary)
+2024-11-07 05:01:30.458 P00   INFO: check repo1 archive for WAL (primary)
+2024-11-07 05:02:30.468 P00  ERROR: [082]: WAL segment 0000000100000000000000E2 was not archived before the 60000ms timeout
+                                    HINT: check the archive_command to ensure that all options are correct (especially --stanza).
+                                    HINT: check the PostgreSQL server log for errors.
+                                    HINT: run the 'start' command if the stanza was previously stopped.
+2024-11-07 05:02:30.468 P00   INFO: check command end: aborted with exception [082]
 
 
 7. Trigger FULL Backup:
