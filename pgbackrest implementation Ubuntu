@@ -1,0 +1,199 @@
+# OS Ubuntu:
+
+Note: SETUP SSH passwordless connection for the nodes and backup node vice-versa.
+ssh-keygen -t rsa
+
+1. Install PostgreSQL:
+sudo apt install curl ca-certificates
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+sudo apt update
+sudo apt -y install postgresql-15
+
+2. Primary and Replica are set with physical streaming Replication.
+
+3. pgbackrest installation
+On Backup node:
+sudo apt install postgresql-client-16
+
+## On All Nodes: ##
+ubuntu@ip-172-31-82-192:~$ sudo apt install pgbackrest
+
+On Backup node:
+
+1. Install needed directories
+sudo mkdir -p /data/backups && sudo chown postgres:postgres /data/backups && sudo chmod 755 /data/backups
+sudo mkdir -p -m 770 /var/log/pgbackrest
+sudo chown postgres:postgres /var/log/pgbackrest
+sudo mkdir -p /etc/pgbackrest
+sudo mkdir -p /etc/pgbackrest/conf.d
+sudo touch /etc/pgbackrest/pgbackrest.conf
+sudo chmod 640 /etc/pgbackrest/pgbackrest.conf
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+2. Create configuration files:
+cat << EOF | sudo tee -a /etc/pgbackrest/pgbackrest.conf
+[global]
+compress-type=lz4
+process-max=2
+start-fast=y
+log-level-file=info
+spool-path=/var/spool/pgbackrest
+backup-standby=y
+repo1-retention-full=2
+repo-path=/data/backups
+
+[land_registry]
+pg1-path=/var/lib/pgsql/15/data
+pg1-host=54.175.127.129
+pg1-host-user=postgres
+pg2-path=/var/lib/pgsql/15/data
+pg2-host=18.209.51.157
+pg2-host-user=postgres
+lock-path=/tmp/pgbackrest/stanza_lock
+EOF" 
+****Change permissions accordingly.
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+On DB nodes:
+
+1. Install needed directories
+sudo mkdir -p -m 770 /var/log/pgbackrest
+sudo chown postgres:postgres /var/log/pgbackrest
+sudo mkdir -p /etc/pgbackrest
+sudo mkdir -p /etc/pgbackrest/conf.d
+sudo touch /etc/pgbackrest/pgbackrest.conf
+sudo chmod 640 /etc/pgbackrest/pgbackrest.conf
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+2. Create configuration file:
+cat << EOF | sudo tee -a /etc/pgbackrest/pgbackrest.conf
+[land_registry]
+pg1-path=/var/lib/pgsql/15/data
+pg1-host-user=postgres
+
+[global]
+log-level-file=detail
+repo1-host=54.158.238.43
+repo1-host-user=postgres
+repo-path=/data/backups
+spool-path=/var/spool/pgbackrest
+compress-type=lz4
+process-max=2
+archive-timeout=150
+EOF
+**** Change permissions accordingly.
+sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
+
+4. Create Stanza:
+On Backup node:
+postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry_stanza --log-level-console=info stanza-create
+2024-11-07 19:09:58.687 P00   INFO: stanza-create command begin 2.54.0: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=168535-10cbdba8 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
+2024-11-07 19:10:00.244 P00   INFO: stanza-create for stanza 'land_registry' on repo1
+2024-11-07 19:10:00.466 P00   INFO: stanza-create command end: completed successfully (1782ms)
+
+On Primary node:
+postgres@ip-172-31-91-122:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry_stanza --log-level-console=info stanza-create
+2024-11-07 19:10:11.944 P00   INFO: stanza-create command begin 2.54.0: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=30286-528b4569 --log-level-console=info --log-level-file=detail --pg1-path=/var/lib/postgresql/15/main --repo1-host=44.211.46.150 --repo1-host-user=postgres --repo1-path=/data/backups --stanza=land_registry
+2024-11-07 19:10:11.952 P00   INFO: stanza-create for stanza 'land_registry' on repo1
+2024-11-07 19:10:12.699 P00   INFO: stanza 'land_registry' already exists on repo1 and is valid
+2024-11-07 19:10:12.799 P00   INFO: stanza-create command end: completed successfully (858ms)
+
+5. Change archive settings:
+On both Primary & Standby Node:
+postgres@ip-172-31-91-122:~$ psql -c "ALTER SYSTEM SET archive_command = '/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land archive-push %p'";
+ALTER SYSTEM
+postgres@ip-172-31-91-122:~$ psql -c "ALTER SYSTEM SET archive_mode='on'";
+ALTER SYSTEM
+postgres@ip-172-31-91-122:~$ psql -c "SELECT pg_reload_conf();"
+ pg_reload_conf 
+----------------
+ t
+(1 row)
+If modifying archive_mode , then restart or reload should be fine.
+sudo systemctl restart postgresql-15
+
+Validate:
+[postgres@ip-172-31-20-100 ~]$ psql -c "show archive_mode;"
+ archive_mode 
+--------------
+ on
+(1 row)
+
+postgres@ip-172-31-91-122:~$ psql -c "show archive_command;"
+                                         archive_command                                         
+-------------------------------------------------------------------------------------------------
+ /bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land archive-push %p
+(1 row)
+
+6.Verify pgbackrest and archive ERRORRRRRRRRRRRRRRRRR -- to be checked.
+postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry_stanza --log-level-console=detail check
+2024-11-07 19:11:49.243 P00   INFO: check command begin 2.54.0: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=168624-bee8c07a --log-level-console=detail --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
+2024-11-07 19:11:50.763 P00   INFO: check repo1 (standby)
+2024-11-07 19:11:50.764 P00   INFO: switch wal not performed because this is a standby
+2024-11-07 19:11:50.766 P00   INFO: check repo1 configuration (primary)
+2024-11-07 19:11:50.815 P00   INFO: check repo1 archive for WAL (primary)
+2024-11-07 19:12:50.824 P00  ERROR: [082]: WAL segment 0000000100000000000000EA was not archived before the 60000ms timeout
+                                    HINT: check the archive_command to ensure that all options are correct (especially --stanza).
+                                    HINT: check the PostgreSQL server log for errors.
+                                    HINT: run the 'start' command if the stanza was previously stopped.
+2024-11-07 19:12:50.824 P00   INFO: check command end: aborted with exception [082]
+
+
+
+============================
+packages for download:
+https://mirror.cs.uchicago.edu/postgres/pool/main/p/pgbackrest/
+
+============================
+pgbackrest errors:
+
+postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info stanza-create
+2024-11-07 04:16:12.712 P00   INFO: stanza-create command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3241-07416e65 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
+The authenticity of host '44.202.27.133 (44.202.27.133)' can't be established.
+ED25519 key fingerprint is SHA256:n6i7pxLiWDmPPF1fsRa86USKxZ6G0oIeQG6lIEmaGxs.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+WARN: unable to check pg1: [UnknownError] remote-0 process on '44.202.27.133' terminated unexpectedly [255]: postgres@44.202.27.133: Permission denied (publickey).
+The authenticity of host '3.84.131.120 (3.84.131.120)' can't be established.
+ED25519 key fingerprint is SHA256:hNHUtBGrQU2/UhrI7Z20gn52q7zlIHmDYGqve36C49g.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+WARN: unable to check pg2: [UnknownError] remote-0 process on '3.84.131.120' terminated unexpectedly [255]: postgres@3.84.131.120: Permission denied (publickey).
+ERROR: [056]: unable to find primary cluster - cannot proceed
+       HINT: are all available clusters in recovery?
+2024-11-07 04:16:16.390 P00   INFO: stanza-create command end: aborted with exception [056]
+SOLUTION: fix ssh connectivity between DB nodes and backup node.
+
+
+postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=info stanza-create
+2024-11-07 04:21:04.834 P00   INFO: stanza-create command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3284-20cc3f14 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
+WARN: unable to check pg1: [ProtocolError] expected value '2.50' for greeting key 'version' but got '2.54.0'
+      HINT: is the same version of pgBackRest installed on the local and remote host?
+WARN: unable to check pg2: [UnknownError] remote-0 process on '3.84.131.120' terminated unexpectedly [127]: bash: line 1: pgbackrest: command not found
+ERROR: [056]: unable to find primary cluster - cannot proceed
+       HINT: are all available clusters in recovery?
+2024-11-07 04:21:06.216 P00   INFO: stanza-create command end: aborted with exception [056]
+SOLUTION: fix pgbackrest version
+sudo apt-get install meson gcc libpq-dev libssl-dev libxml2-dev pkg-config liblz4-dev libzstd-dev libbz2-dev libz-dev libyaml-dev libssh2-1-dev
+wget https://github.com/pgbackrest/pgbackrest/archive/release/2.54.0.tar.gz
+mkdir pgbackrest/
+tar xvf 2.54.0.tar.gz -C pgbackrest/
+cd pgbackrest/pgbackrest-release-2.54.0/src
+./configure
+make
+make install
+
+postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry --log-level-console=detail check
+2024-11-07 04:54:51.144 P00   INFO: check command begin 2.54.0: --backup-standby=y --config=/etc/pgbackrest/pgbackrest.conf --exec-id=8291-bbe5f4e2 --log-level-console=detail --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
+2024-11-07 04:54:52.690 P00   INFO: check repo1 (standby)
+2024-11-07 04:54:52.691 P00   INFO: switch wal not performed because this is a standby
+2024-11-07 04:54:52.693 P00   INFO: check repo1 configuration (primary)
+2024-11-07 04:54:52.743 P00   INFO: check repo1 archive for WAL (primary)
+2024-11-07 04:55:52.753 P00  ERROR: [082]: WAL segment 0000000100000000000000E1 was not archived before the 60000ms timeout
+                                    HINT: check the archive_command to ensure that all options are correct (especially --stanza).
+                                    HINT: check the PostgreSQL server log for errors.
+                                    HINT: run the 'start' command if the stanza was previously stopped.
+2024-11-07 04:55:52.753 P00   INFO: check command end: aborted with exception [082]
+SOLUTION: 
