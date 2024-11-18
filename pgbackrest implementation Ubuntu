@@ -197,3 +197,10 @@ postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf
                                     HINT: run the 'start' command if the stanza was previously stopped.
 2024-11-07 04:55:52.753 P00   INFO: check command end: aborted with exception [082]
 SOLUTION: 
+
+
+postgres@ip-172-31-92-140:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info stanza-create
+2024-11-18 22:52:01.733 P00   INFO: stanza-create command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5126-2545e370 --log-level-console=info --log-level-file=detail --pg1-host=54.88.68.10 --pg1-host-user=postgres --pg1-path=/var/lib/postgresql/16/main --repo1-host=35.171.158.72 --repo1-host-user=postgres --repo1-path=/data/backups --stanza=customer
+ERROR: [027]: pg and repo hosts cannot both be configured as remote
+2024-11-18 22:52:01.733 P00   INFO: stanza-create command end: aborted with exception [027]
+SOLUTION: Check for pg1-host if added on the DB host and repo-host if added on Backup node.
