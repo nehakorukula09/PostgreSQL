@@ -35,23 +35,20 @@ sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
 2. Create configuration files:
 cat << EOF | sudo tee -a /etc/pgbackrest/pgbackrest.conf
 [global]
-compress-type=lz4
-process-max=2
 start-fast=y
 log-level-file=info
-spool-path=/var/spool/pgbackrest
 backup-standby=y
+repo1-host-user=postgres
 repo1-retention-full=2
 repo-path=/data/backups
 
-[land_registry]
-pg1-path=/var/lib/pgsql/15/data
-pg1-host=54.175.127.129
+[customer]
+pg1-path=/var/lib/postgresql/16/main
+pg1-host=54.88.68.10
 pg1-host-user=postgres
-pg2-path=/var/lib/pgsql/15/data
-pg2-host=18.209.51.157
+pg2-path=/var/lib/postgresql/16/main
+pg2-host=3.89.19.89
 pg2-host-user=postgres
-lock-path=/tmp/pgbackrest/stanza_lock
 EOF" 
 ****Change permissions accordingly.
 sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
@@ -69,76 +66,154 @@ sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
 
 2. Create configuration file:
 cat << EOF | sudo tee -a /etc/pgbackrest/pgbackrest.conf
-[land_registry]
-pg1-path=/var/lib/pgsql/15/data
+[customer]
+pg1-path=/var/lib/postgresql/16/main
+pg1-host=54.88.68.10
 pg1-host-user=postgres
 
 [global]
 log-level-file=detail
-repo1-host=54.158.238.43
+repo1-host=35.171.158.72
 repo1-host-user=postgres
 repo-path=/data/backups
-spool-path=/var/spool/pgbackrest
-compress-type=lz4
-process-max=2
-archive-timeout=150
 EOF
 **** Change permissions accordingly.
 sudo chown postgres:postgres /etc/pgbackrest/pgbackrest.conf
 
 4. Create Stanza:
 On Backup node:
-postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry_stanza --log-level-console=info stanza-create
-2024-11-07 19:09:58.687 P00   INFO: stanza-create command begin 2.54.0: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=168535-10cbdba8 --lock-path=/tmp/pgbackrest/stanza_lock --log-level-console=info --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
-2024-11-07 19:10:00.244 P00   INFO: stanza-create for stanza 'land_registry' on repo1
-2024-11-07 19:10:00.466 P00   INFO: stanza-create command end: completed successfully (1782ms)
+postgres@ip-172-31-93-156:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info stanza-create
+2024-11-18 22:51:50.541 P00   INFO: stanza-create command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=2652-24a12f16 --log-level-console=info --log-level-file=info --pg1-host=54.88.68.10 --pg2-host=3.89.19.89 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/16/main --pg2-path=/var/lib/postgresql/16/main --repo1-path=/data/backups --stanza=customer
+2024-11-18 22:51:53.288 P00   INFO: stanza-create for stanza 'customer' on repo1
+2024-11-18 22:51:53.539 P00   INFO: stanza-create command end: completed successfully (3000ms)
 
 On Primary node:
-postgres@ip-172-31-91-122:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry_stanza --log-level-console=info stanza-create
-2024-11-07 19:10:11.944 P00   INFO: stanza-create command begin 2.54.0: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=30286-528b4569 --log-level-console=info --log-level-file=detail --pg1-path=/var/lib/postgresql/15/main --repo1-host=44.211.46.150 --repo1-host-user=postgres --repo1-path=/data/backups --stanza=land_registry
-2024-11-07 19:10:11.952 P00   INFO: stanza-create for stanza 'land_registry' on repo1
-2024-11-07 19:10:12.699 P00   INFO: stanza 'land_registry' already exists on repo1 and is valid
-2024-11-07 19:10:12.799 P00   INFO: stanza-create command end: completed successfully (858ms)
+postgres@ip-172-31-92-140:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info stanza-create
+2024-11-18 22:55:35.032 P00   INFO: stanza-create command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=5231-5b1ed224 --log-level-console=info --log-level-file=detail --pg1-path=/var/lib/postgresql/16/main --repo1-host=35.171.158.72 --repo1-host-user=postgres --repo1-path=/data/backups --stanza=customer
+2024-11-18 22:55:35.636 P00   INFO: stanza-create for stanza 'customer' on repo1
+The authenticity of host '35.171.158.72 (35.171.158.72)' can't be established.
+ED25519 key fingerprint is SHA256:Gryc4+CorNS1jRvyJWOH+pBVfTzz9ohd6n0arCB3dc4.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+2024-11-18 22:55:37.974 P00   INFO: stanza 'customer' already exists on repo1 and is valid
+2024-11-18 22:55:38.074 P00   INFO: stanza-create command end: completed successfully (3045ms)
 
 5. Change archive settings:
 On both Primary & Standby Node:
-postgres@ip-172-31-91-122:~$ psql -c "ALTER SYSTEM SET archive_command = '/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land archive-push %p'";
+postgres@ip-172-31-92-140:~$ psql -c "ALTER SYSTEM SET archive_command = '/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer archive-push %p'";
 ALTER SYSTEM
-postgres@ip-172-31-91-122:~$ psql -c "ALTER SYSTEM SET archive_mode='on'";
+postgres@ip-172-31-92-140:~$ psql -c "ALTER SYSTEM SET archive_mode='on'";
 ALTER SYSTEM
-postgres@ip-172-31-91-122:~$ psql -c "SELECT pg_reload_conf();"
+postgres@ip-172-31-92-140:~$ psql -c "SELECT pg_reload_conf();"
  pg_reload_conf 
 ----------------
  t
 (1 row)
 If modifying archive_mode , then restart or reload should be fine.
-sudo systemctl restart postgresql-15
+ubuntu@ip-172-31-92-140:~$ sudo systemctl restart postgresql@16-main.service
 
 Validate:
-[postgres@ip-172-31-20-100 ~]$ psql -c "show archive_mode;"
+postgres=# show archive_command ;
+                                      archive_command                                       
+--------------------------------------------------------------------------------------------
+ /bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer archive-push %p
+(1 row)
+
+postgres=# show archive_mode ;
  archive_mode 
 --------------
  on
 (1 row)
 
-postgres@ip-172-31-91-122:~$ psql -c "show archive_command;"
-                                         archive_command                                         
--------------------------------------------------------------------------------------------------
- /bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land archive-push %p
-(1 row)
 
-6.Verify pgbackrest and archive ERRORRRRRRRRRRRRRRRRR -- to be checked.
-postgres@ip-172-31-82-192:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=land_registry_stanza --log-level-console=detail check
-2024-11-07 19:11:49.243 P00   INFO: check command begin 2.54.0: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=168624-bee8c07a --log-level-console=detail --log-level-file=info --pg1-host=44.202.27.133 --pg2-host=3.84.131.120 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/15/main --pg2-path=/var/lib/postgresql/15/main --repo1-path=/data/backups --stanza=land_registry
-2024-11-07 19:11:50.763 P00   INFO: check repo1 (standby)
-2024-11-07 19:11:50.764 P00   INFO: switch wal not performed because this is a standby
-2024-11-07 19:11:50.766 P00   INFO: check repo1 configuration (primary)
-2024-11-07 19:11:50.815 P00   INFO: check repo1 archive for WAL (primary)
-2024-11-07 19:12:50.824 P00  ERROR: [082]: WAL segment 0000000100000000000000EA was not archived before the 60000ms timeout
-                                    HINT: check the archive_command to ensure that all options are correct (especially --stanza).
-                                    HINT: check the PostgreSQL server log for errors.
-                                    HINT: run the 'start' command if the stanza was previously stopped.
-2024-11-07 19:12:50.824 P00   INFO: check command end: aborted with exception [082]
+6.Verify pgbackrest and archive.
+postgres@ip-172-31-93-156:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info check
+2024-11-18 22:56:49.638 P00   INFO: check command begin 2.50: --backup-standby --config=/etc/pgbackrest/pgbackrest.conf --exec-id=2921-9f245b3a --log-level-console=info --log-level-file=info --pg1-host=54.88.68.10 --pg2-host=3.89.19.89 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/16/main --pg2-path=/var/lib/postgresql/16/main --repo1-path=/data/backups --stanza=customer
+2024-11-18 22:56:52.358 P00   INFO: check repo1 (standby)
+2024-11-18 22:56:52.359 P00   INFO: switch wal not performed because this is a standby
+2024-11-18 22:56:52.362 P00   INFO: check repo1 configuration (primary)
+2024-11-18 22:56:52.567 P00   INFO: check repo1 archive for WAL (primary)
+2024-11-18 22:56:53.670 P00   INFO: WAL segment 000000010000000000000005 successfully archived to '/data/backups/archive/customer/16-1/0000000100000000/000000010000000000000005-d75536634146f1fd8919195fc8c7cd99799991b7.gz' on repo1
+2024-11-18 22:56:53.874 P00   INFO: check command end: completed successfully (4238ms)
+
+postgres@ip-172-31-93-156:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info backup --type=full
+2024-11-18 23:00:42.178 P00   INFO: backup command begin 2.50: --backup-standby --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3012-8b71f8cc --log-level-console=info --log-level-file=info --pg1-host=54.88.68.10 --pg2-host=3.89.19.89 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/16/main --pg2-path=/var/lib/postgresql/16/main --repo1-path=/data/backups --repo1-retention-full=2 --stanza=customer --start-fast --type=full
+2024-11-18 23:00:44.984 P00   INFO: execute non-exclusive backup start: backup begins after the requested immediate checkpoint completes
+2024-11-18 23:00:45.493 P00   INFO: backup start archive = 000000010000000000000007, lsn = 0/7000028
+2024-11-18 23:00:45.493 P00   INFO: wait for replay on the standby to reach 0/7000028
+2024-11-18 23:00:45.804 P00   INFO: replay on the standby reached 0/7000028
+2024-11-18 23:00:45.804 P00   INFO: check archive for prior segment 000000010000000000000006
+2024-11-18 23:00:57.445 P00   INFO: execute non-exclusive backup stop and wait for all WAL segments to archive
+2024-11-18 23:00:57.647 P00   INFO: backup stop archive = 000000010000000000000007, lsn = 0/7000138
+2024-11-18 23:00:57.655 P00   INFO: check archive for segment(s) 000000010000000000000007:000000010000000000000007
+2024-11-18 23:00:58.375 P00   INFO: new backup label = 20241118-230044F
+2024-11-18 23:00:58.435 P00   INFO: full backup size = 30.2MB, file total = 1302
+2024-11-18 23:00:58.435 P00   INFO: backup command end: completed successfully (16260ms)
+2024-11-18 23:00:58.435 P00   INFO: expire command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3012-8b71f8cc --log-level-console=info --log-level-file=info --repo1-path=/data/backups --repo1-retention-full=2 --stanza=customer
+2024-11-18 23:00:58.445 P00   INFO: expire command end: completed successfully (10ms)
+
+postgres@ip-172-31-93-156:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info backup
+2024-11-18 23:01:02.490 P00   INFO: backup command begin 2.50: --backup-standby --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3210-ee0a36fb --log-level-console=info --log-level-file=info --pg1-host=54.88.68.10 --pg2-host=3.89.19.89 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/16/main --pg2-path=/var/lib/postgresql/16/main --repo1-path=/data/backups --repo1-retention-full=2 --stanza=customer --start-fast
+2024-11-18 23:01:04.413 P00   INFO: last backup label = 20241118-230044F, version = 2.50
+2024-11-18 23:01:04.413 P00   INFO: execute non-exclusive backup start: backup begins after the requested immediate checkpoint completes
+2024-11-18 23:01:05.125 P00   INFO: backup start archive = 000000010000000000000008, lsn = 0/8000028
+2024-11-18 23:01:05.125 P00   INFO: wait for replay on the standby to reach 0/8000028
+2024-11-18 23:01:05.440 P00   INFO: replay on the standby reached 0/8000028
+2024-11-18 23:01:05.440 P00   INFO: check archive for segment 000000010000000000000008
+2024-11-18 23:01:07.154 P00   INFO: execute non-exclusive backup stop and wait for all WAL segments to archive
+2024-11-18 23:01:07.356 P00   INFO: backup stop archive = 000000010000000000000009, lsn = 0/9000050
+2024-11-18 23:01:07.365 P00   INFO: check archive for segment(s) 000000010000000000000008:000000010000000000000009
+2024-11-18 23:01:08.584 P00   INFO: new backup label = 20241118-230044F_20241118-230104I
+2024-11-18 23:01:08.646 P00   INFO: incr backup size = 8.3KB, file total = 1302
+2024-11-18 23:01:08.646 P00   INFO: backup command end: completed successfully (6158ms)
+2024-11-18 23:01:08.646 P00   INFO: expire command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3210-ee0a36fb --log-level-console=info --log-level-file=info --repo1-path=/data/backups --repo1-retention-full=2 --stanza=customer
+2024-11-18 23:01:08.660 P00   INFO: expire command end: completed successfully (14ms)
+
+
+postgres@ip-172-31-93-156:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info backup --type=diff
+2024-11-18 23:01:30.758 P00   INFO: backup command begin 2.50: --backup-standby --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3371-5e1bb265 --log-level-console=info --log-level-file=info --pg1-host=54.88.68.10 --pg2-host=3.89.19.89 --pg1-host-user=postgres --pg2-host-user=postgres --pg1-path=/var/lib/postgresql/16/main --pg2-path=/var/lib/postgresql/16/main --repo1-path=/data/backups --repo1-retention-full=2 --stanza=customer --start-fast --type=diff
+2024-11-18 23:01:32.918 P00   INFO: last backup label = 20241118-230044F, version = 2.50
+2024-11-18 23:01:32.918 P00   INFO: execute non-exclusive backup start: backup begins after the requested immediate checkpoint completes
+2024-11-18 23:01:33.426 P00   INFO: backup start archive = 00000001000000000000000B, lsn = 0/B000028
+2024-11-18 23:01:33.426 P00   INFO: wait for replay on the standby to reach 0/B000028
+2024-11-18 23:01:33.737 P00   INFO: replay on the standby reached 0/B000028
+2024-11-18 23:01:33.739 P00   INFO: check archive for prior segment 00000001000000000000000A
+2024-11-18 23:01:35.157 P00   INFO: execute non-exclusive backup stop and wait for all WAL segments to archive
+2024-11-18 23:01:35.360 P00   INFO: backup stop archive = 00000001000000000000000B, lsn = 0/B000100
+2024-11-18 23:01:35.369 P00   INFO: check archive for segment(s) 00000001000000000000000B:00000001000000000000000B
+2024-11-18 23:01:35.790 P00   INFO: new backup label = 20241118-230044F_20241118-230132D
+2024-11-18 23:01:35.860 P00   INFO: diff backup size = 8.3KB, file total = 1302
+2024-11-18 23:01:35.860 P00   INFO: backup command end: completed successfully (5104ms)
+2024-11-18 23:01:35.860 P00   INFO: expire command begin 2.50: --config=/etc/pgbackrest/pgbackrest.conf --exec-id=3371-5e1bb265 --log-level-console=info --log-level-file=info --repo1-path=/data/backups --repo1-retention-full=2 --stanza=customer
+2024-11-18 23:01:35.870 P00   INFO: expire command end: completed successfully (10ms)
+
+postgres@ip-172-31-93-156:~$ pgbackrest --config=/etc/pgbackrest/pgbackrest.conf --stanza=customer --log-level-console=info info
+stanza: customer
+    status: ok
+    cipher: none
+
+    db (current)
+        wal archive min/max (16): 000000010000000000000003/00000001000000000000000B
+
+        full backup: 20241118-230044F
+            timestamp start/stop: 2024-11-18 23:00:44+00 / 2024-11-18 23:00:57+00
+            wal start/stop: 000000010000000000000007 / 000000010000000000000007
+            database size: 30.2MB, database backup size: 30.2MB
+            repo1: backup set size: 4MB, backup size: 4MB
+
+        incr backup: 20241118-230044F_20241118-230104I
+            timestamp start/stop: 2024-11-18 23:01:04+00 / 2024-11-18 23:01:07+00
+            wal start/stop: 000000010000000000000008 / 000000010000000000000009
+            database size: 30.2MB, database backup size: 8.3KB
+            repo1: backup set size: 4MB, backup size: 431B
+            backup reference list: 20241118-230044F
+
+        diff backup: 20241118-230044F_20241118-230132D
+            timestamp start/stop: 2024-11-18 23:01:32+00 / 2024-11-18 23:01:35+00
+            wal start/stop: 00000001000000000000000B / 00000001000000000000000B
+            database size: 30.2MB, database backup size: 8.3KB
+            repo1: backup set size: 4MB, backup size: 431B
+            backup reference list: 20241118-230044F
 
 
 
