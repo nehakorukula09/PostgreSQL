@@ -1,0 +1,26 @@
+On Ubuntu:
+
+Posgresql needs to be installed before:
+
+pglogical installation: 
+sudo apt-get install postgresql-14-pglogical
+ALTER SYSTEM SET shared_preload_libraries='pglogical';
+Restart
+CREATE EXTENSION pglogical;
+
+On PG 16:
+sudo apt install curl ca-certificates
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+. /etc/os-release
+sudo sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main' > /etc/apt/sources.list.d/pgdg.list"
+sudo apt update
+sudo apt-get install postgresql-16-pglogical
+
+RedHat/CentOS/Fedora
+Ensure you have the PostgreSQL PGDG repository set up first, then use yum or dnf: 
+bash
+# Example for PostgreSQL 16 on RHEL 8/9
+sudo dnf install pglogical_16*
+# Or for other versions, e.g.,
+sudo dnf install pglogical_15*
