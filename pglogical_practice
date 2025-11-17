@@ -24,3 +24,76 @@ bash
 sudo dnf install pglogical_16*
 # Or for other versions, e.g.,
 sudo dnf install pglogical_15*
+
+Export config values in bash:
+####PostgreSQL Config
+export PG_VER=`psql --version | awk '{print $3}' | awk -F '.' '{print $1}'`
+export node_a_ip=""
+export node_b_ip=""
+export repl_user=""
+export repl_pass=''
+export db_name=""
+
+PostgreSQL config:
+
+echo "#/etc/postgresql/$PG_VER/main/conf.d/pg_logical.conf
+listen_addresses = '*'
+wal_level='logical'
+max_worker_processes=10
+max_replication_slots=10
+max_wal_senders=10
+shared_preload_libraries='pglogical'
+
+#log
+log_destination = 'stderr'
+logging_collector = 'on'
+log_directory = 'log'
+log_filename = 'postgresql-%Y%m%d.log'
+log_rotation_age = 1d
+log_rotation_size = 10MB
+log_truncate_on_rotation = off
+log_error_verbosity = verbose
+
+" | sudo tee /etc/postgresql/$PG_VER/main/conf.d/pglogical.conf
+
+PG hba config:
+
+echo "
+
+#Allowing replication user connections
+host  replication  $repl_user  172.31.0.0/20 scram-sha-256
+host  all          all         172.31.0.0/20 scram-sha-256 
+" | sudo tee -a /etc/postgresql/$PG_VER/main/pg_hba.conf
+
+Enable services and restart the DB:
+sudo systemctl stop postgresql@PG_VER-main
+sudo systemctl enable --now postgresql@PG_VER-main
+sudo systemctl status postgresql@$PG_VER-main
+
+User/DB creation and access:
+sudo -iu postgres psql -c "CREATE ROLE $repl_user WITH REPLICATION LOGIN PASSWORD '$repl_pass'"
+sudo -iu postgres psql -d postgres -c "CREATE DATABASE $db_name;"
+sudo -iu postgres psql -d $db_name -c "CREATE EXTENSION pglogical;"
+sudo -iu postgres psql -d $db_name -c "SELECT extname , extversion from pg_extension where extname='pglogical';"
+sudo -iu postgres psql -d $db_name -c "GRANT USAGE ON SCHEMA pglogical to $repl_user;"
+sudo -iu postgres psql -d $db_name -c "GRANT SELECT on ALL TABLES IN SCHEMA pglogical to $repl_user;"
+sudo -iu postgres psql -d $db_name -c "ALTER DEFAULT PRIVILEGES IN SCHEMA pglogical GRANT SELECT on Tables to $repl_user;"
+
+Creating a node:
+sudo -iu postgres psql -d $db_name -c "SELECT pglogical.create_node(
+node_name := '`hostname`' ,
+dsn := 'host=localhost port=5432 dbname=$db_name user=$repl_user password=$repl_pass'
+);"
+sudo -iu postgres psql -d $db_name -c "SELECT * from pglogical.node"
+
+Creating subscription:
+sudo -iu postgres psql -d $db_name -c "
+SELECT pglogical.create_subscription(
+subscription_name := 'sub_2_a',
+provider_dsn := 'host=$node_a_ip port=5432 dbname=$dbname user=$repl_user password=$repl_pass',
+replication_sets := ARRAY['default','ddl_sql']
+);"
+
+
+
+
