@@ -1,6 +1,7 @@
 On Ubuntu:
 
 Posgresql needs to be installed before:
+sudo apt-get install -y postgresql-14
 
 pglogical installation: 
 sudo apt-get install postgresql-14-pglogical
@@ -61,8 +62,8 @@ PG hba config:
 echo "
 
 #Allowing replication user connections
-host  replication  $repl_user  172.31.0.0/20 scram-sha-256
-host  all          all         172.31.0.0/20 scram-sha-256 
+host  replication  $repl_user  172.31.31.0/20 scram-sha-256
+host  all          all         172.31.31.0/20 scram-sha-256 
 " | sudo tee -a /etc/postgresql/$PG_VER/main/pg_hba.conf
 
 Enable services and restart the DB:
@@ -86,7 +87,8 @@ dsn := 'host=localhost port=5432 dbname=$db_name user=$repl_user password=$repl_
 );"
 sudo -iu postgres psql -d $db_name -c "SELECT * from pglogical.node"
 
-Creating subscription:
+
+Creating subscription on B:
 sudo -iu postgres psql -d $db_name -c "
 SELECT pglogical.create_subscription(
 subscription_name := 'sub_2_a',
@@ -94,6 +96,258 @@ provider_dsn := 'host=$node_a_ip port=5432 dbname=$dbname user=$repl_user passwo
 replication_sets := ARRAY['default','ddl_sql']
 );"
 
+Check the subscription status:
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "SELECT subscription_name,status from pglogical.show_subscription_status()"
+ subscription_name | status 
+-------------------+--------
+ sub_2_a           | down
+(1 row)
+
+sudo less /var/lib/postgresql/$PG_VER/main/log/postgresql-20251209.log
+2025-12-09 20:33:28.898 UTC [4495] [unknown]@pglogical_test ERROR:  
+XX000: BEGIN on target node failed: ERROR:  permission denied for function pg_replication_origin_session_setup
+sudo -iu postgres psql -c "ALTER USER $repl_user SUPERUSER;"
+
+Drop the subscription:
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "SELECT pglogical.drop_subscription(subscription_name := 'sub_2_a' );"
+ drop_subscription 
+-------------------
+                 1
+(1 row)
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "SELECT subscription_name,status from pglogical.show_subscription_status()"
+ subscription_name |   status    
+-------------------+-------------
+ sub_2_a           | replicating
+(1 row)
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "CREATE TABLE public.employee (
+    id int8 NOT NULL,
+    name varchar(120) NOT NULL,
+    salary int8 NOT NULL,
+    CONSTRAINT emp_pk PRIMARY KEY (id)
+);"
+CREATE TABLE
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "WITH salary_list AS (
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1, 1000) as n;"
+INSERT 0 1000
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+     0
+(1 row)
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "SELECT pglogical.create_replication_set('default',true,true,true,true);"
+ERROR:  replication set default already exists
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "SELECT pglogical.replication_set_add_table('default', 'public.employee')"
+ replication_set_add_table 
+---------------------------
+ t
+(1 row)
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  1000
+(1 row)
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "TRUNCATE TABLE public.employee ;"
+TRUNCATE TABLE
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "WITH salary_list AS (                                                   
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)                              
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1, 1000) as n;"
+INSERT 0 1000
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  1000
+(1 row)
+
+=========================
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "TRUNCATE TABLE public.employee ;"
+TRUNCATE TABLE
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+     0
+(1 row)
+
+========================
+
+On A : 1000 rows , Insert on B : 1000 rows
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "WITH salary_list AS (
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1, 1000) as n;"
+INSERT 0 1000
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  1000
+(1 row)
+
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "WITH salary_list AS (
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1001, 2000) as n;"
+INSERT 0 1000
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  2000
+(1 row)
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  1000
+(1 row)
+
+====================
+multi-master replication :
+
+Add replica set table to node b:
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "SELECT pglogical.replication_set_add_table('default', 'public.employee')"
+ replication_set_add_table 
+---------------------------
+ t
+(1 row)
+
+Creating subscription on node-a :
+sudo -iu postgres psql -d $db_name -c "
+SELECT pglogical.create_subscription(
+subscription_name := 'sub_2_b',
+provider_dsn := 'host=$node_b_ip port=5432 dbname=$dbname user=$repl_user password=$repl_pass',
+replication_sets := ARRAY['default','ddl_sql']
+);"
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "SELECT subscription_name,status from pglogical.show_subscription_status()"
+ subscription_name |   status    
+-------------------+-------------
+ sub_2_b           | replicating
+(1 row)
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "SELECT subscription_name,status from pglogical.show_subscription_status()"
+ subscription_name |   status    
+-------------------+-------------
+ sub_2_a           | replicating
+(1 row)
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "WITH salary_list AS (
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1, 1000) as n;"
+INSERT 0 1000
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  1000
+(1 row)
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  1000
+(1 row)
+
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "WITH salary_list AS (
+    SELECT '{1000, 2000, 5000}'::INT[] salary
+)
+INSERT INTO public.employee
+(id, name, salary)
+SELECT n, 'Employee ' || n as name, salary[1 + mod(n, array_length(salary, 1))]
+FROM salary_list, generate_series(1001, 2000) as n;"
+INSERT 0 1000
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  2000
+(1 row)
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "select count(*) from public.employee ;"
+ count 
+-------
+  2000
+(1 row)
+
+=============
+Exercise:
+ubuntu@node-b:~$ sudo -iu postgres psql -d $db_name -c "select * from public.employee ORDER BY id desc limit 1;"
+  id  |     name      | salary 
+------+---------------+--------
+ 2000 | Employee 2000 |   5000
+(1 row)
+
+ubuntu@node-a:~$ sudo -iu postgres psql -d $db_name -c "select * from public.employee ORDER BY id desc limit 1;"
+  id  |     name      | salary 
+------+---------------+--------
+ 2000 | Employee 2000 |   5000
+(1 row)
+
+On B: 
+pglogical_test=# BEGIN;
+BEGIN
+pglogical_test=*# INSERT INTO public.employee(id,name,salary) VALUES (2001,'Employee 2001',2000);
+INSERT 0 1
+pglogical_test=*# COMMIT;
+COMMIT
+
+On A:
+pglogical_test=# BEGIN;
+BEGIN
+pglogical_test=*# INSERT INTO public.employee(id,name,salary) VALUES (2001,'Employee 2001',10000);
+INSERT 0 1
+pglogical_test=*# COMMIT;
+COMMIT
+
+Commied value on both sides is 
+pglogical_test=# select * from public.employee ORDER BY id desc limit 1;
+  id  |     name      | salary 
+------+---------------+--------
+ 2001 | Employee 2001 |   2000
+(1 row)
+
+Policy : APPLY REMOTE
+
+pglogical_test=# show pglogical.conflict_resolution;
+ pglogical.conflict_resolution 
+-------------------------------
+ apply_remote
+(1 row)
+
+On NodeA:
+pglogical_test=# INSERT INTO public.employee(id,name,salary) VALUES (2002,'Employee 2002',10000);
+INSERT 0 1
+On NodeB:
+pglogical_test=# INSERT INTO public.employee(id,name,salary) VALUES (2002,'Employee 2002',5000);
+ERROR:  duplicate key value violates unique constraint "emp_pk"
+DETAIL:  Key (id)=(2002) already exists.
+
+Depends on SSH connectivity etc.........
+
+=====================================
 
 
 
