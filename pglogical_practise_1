@@ -1,0 +1,185 @@
+Export  db_name1 and local_ip in bash
+
+On both a and b
+sudo -iu postgres psql -d postgres -c "CREATE DATABASE $db_name1;"
+sudo -iu postgres psql -d $db_name1 -c "CREATE EXTENSION pglogical;"
+-- Creating a node:
+sudo -iu postgres psql -d $db_name1 -c "SELECT pglogical.create_node(
+node_name := '`hostname`' ,
+dsn := 'host=$local_ip port=5432 dbname=$db_name1 user=$repl_user password=$repl_pass'
+);"
+sudo -iu postgres psql -d $db_name1 -c "SELECT * from pglogical.node"
+sudo -iu postgres psql -d $db_name1 -c "CREATE TABLE staff (
+    id int8 NOT NULL,
+    name varchar(120) NOT NULL,
+    salary int8 NOT NULL,
+    CONSTRAINT staff_pk PRIMARY KEY (id)
+);"
+-- Add Table to replica set
+sudo -iu postgres psql -d $db_name1 -c "SELECT pglogical.replication_set_add_table('default', 'staff')"
+
+-- Create Subscription:
+
+On B:
+sudo -iu postgres psql -d $db_name1 -c "
+SELECT pglogical.create_subscription(
+subscription_name := 'sub_2_a',
+provider_dsn := 'host=$node_a_ip port=5432 dbname=$db_name1 user=$repl_user password=$repl_pass',
+replication_sets := ARRAY['default','ddl_sql']
+);"
+
+On A:
+sudo -iu postgres psql -d $db_name1 -c "
+SELECT pglogical.create_subscription(
+subscription_name := 'sub_2_b',
+provider_dsn := 'host=$node_b_ip port=5432 dbname=$db_name1 user=$repl_user password=$repl_pass',
+replication_sets := ARRAY['default','ddl_sql']
+);"
+
+======================
+
+Ubuntu:
+sudo apt install libpq-dev build-essential make curl pkgconf
+gcc -o pg_test pg_test.c -lpthread `pkg-config --cflags --libs libpq`
+
+./pg_test \
+    --maxRows=50 \
+    --compInt=30 \
+    --time=1200 \
+    --host1="host=** port=5432 dbname=pglogical_test1 user=repluser password=replpass" \
+    --host2="host=** port=5432 dbname=pglogical_test1 user=repluser password=replpass"
+ *      
+ */ 
+
+ Upgrade pg14 to pg16 :
+ [Method used Inplace]
+
+ -> Install pg16 and pglogical16
+ sudo systemctl enable postgresql@$16-main.service
+ sudo pg_createcluster 16 main --start
+ubuntu@node-a:~$  sudo systemctl disable postgresql@14-main.service
+ubuntu@node-a:~$ sudo systemctl stop  postgresql@14-main.service
+ubuntu@node-a:~$ sudo -iu postgres pg_lsclusters
+Ver Cluster Port Status Owner    Data directory              Log file
+14  main    5432 down   postgres /var/lib/postgresql/14/main log/postgresql-%Y%m%d.log
+16  main    5433 online postgres /var/lib/postgresql/16/main /var/log/postgresql/postgresql-16-main.log
+postgres@node-a:~$ /usr/lib/postgresql/16/bin/pg_ctl status -D /var/lib/postgresql/16/main
+pg_ctl: server is running (PID: 304479)
+/usr/lib/postgresql/16/bin/postgres "-D" "/var/lib/postgresql/16/main" "-c" "config_file=/etc/postgresql/16/main/postgresql.conf"
+postgres@node-a:~$ /usr/lib/postgresql/16/bin/pg_ctl stop -D /var/lib/postgresql/16/main
+waiting for server to shut down.... done
+server stopped
+
+-> sudo -iu postgres pg_upgrade \
+  -d /var/lib/postgresql/14/main \
+  -D /var/lib/postgresql/16/main \
+  -b /usr/lib/postgresql/14/bin/ \
+  -B //usr/lib/postgresql/16/bin/ \
+  -U postgres
+
+ /usr/lib/postgresql/16/bin/pg_upgrade --link -o '-c config_file=/etc/postgresql/14/main/postgresql.conf' -O ' -c config_file=/etc/postgresql/16/main/postgresql.conf' -d /var/lib/postgresql/14/main   -D /var/lib/postgresql/16/main   -b /usr/lib/postgresql/14/bin/   -B /usr/lib/postgresql/16/bin/   -U postgres --check
+
+  /usr/lib/postgresql/16/bin/pg_upgrade --link -o '-c config_file=/etc/postgresql/14/main/postgresql.conf' -O ' -c config_file=/etc/postgresql/16/main/postgresql.conf' -d /var/lib/postgresql/14/main   -D /var/lib/postgresql/16/main   -b /usr/lib/postgresql/14/bin/   -B /usr/lib/postgresql/16/bin/   -U postgres
+
+ Performing Consistency Checks
+-----------------------------
+Checking cluster versions                                     ok
+Checking database user is the install user                    ok
+Checking database connection settings                         ok
+Checking for prepared transactions                            ok
+Checking for system-defined composite types in user tables    ok
+Checking for reg* data types in user tables                   ok
+Checking for contrib/isn with bigint-passing mismatch         ok
+Checking for incompatible "aclitem" data type in user tables  ok
+Checking for not-null constraint inconsistencies              ok
+Creating dump of global objects                               ok
+Creating dump of database schemas                             
+                                                              ok
+Checking for presence of required libraries                   fatal
+
+Your installation references loadable libraries that are missing from the
+new installation.  You can add these libraries to the new installation,
+or remove the functions using them from the old installation.  A list of
+problem libraries is in the file:
+    /var/lib/postgresql/16/main/pg_upgrade_output.d/20251212T011652.588/loadable_libraries.txt
+Failure, exiting
+
+Error:
+could not load library "pglogical": ERROR:  pglogical is not in shared_preload_libraries
+In database: pglogical_test
+In database: pglogical_test1
+could not load library "$libdir/pglogical": ERROR:  pglogical is not in shared_preload_libraries
+In database: pglogical_test
+In database: pglogical_test1
+
+echo "#/etc/postgresql/16/main/conf.d/pg_logical.conf
+listen_addresses = '*'
+wal_level='logical'
+max_worker_processes=10
+max_replication_slots=10
+max_wal_senders=10
+shared_preload_libraries='pglogical'
+
+#log
+log_destination = 'stderr'
+logging_collector = 'on'
+log_directory = 'log'
+log_filename = 'postgresql-%Y%m%d.log'
+log_rotation_age = 1d
+log_rotation_size = 10MB
+log_truncate_on_rotation = off
+log_error_verbosity = verbose
+
+" | sudo tee /etc/postgresql/16/main/conf.d/pglogical.conf
+
+Upgrade Complete
+----------------
+Optimizer statistics are not transferred by pg_upgrade.
+Once you start the new server, consider running:
+    /usr/lib/postgresql/16/bin/vacuumdb -U postgres --all --analyze-in-stages
+Running this script will delete the old cluster's data files:
+    ./delete_old_cluster.sh
+
+sudo systemctl start postgresql@16-main.service
+
+postgres@node-a:~$ pg_conftool 16 main show port;
+port = 5433
+postgres@node-a:~$ pg_conftool 16 main set port 5432;
+ubuntu@node-a:~$ sudo systemctl restart postgresql@16-main.service
+ubuntu@node-a:~$ sudo su - postgres
+postgres@node-a:~$ pg_conftool 16 main show port;
+port = 5432
+
+pglogical_test1=# select * from pglogical.show_subscription_status();
+ subscription_name | status | provider_node |                                    provider_dsn                                     |             slot_name              | replication_sets  | forward_origins 
+-------------------+--------+---------------+-------------------------------------------------------------------------------------+------------------------------------+-------------------+-----------------
+ sub_2_a           | down   | node-a        | host=172.31.24.189 port=5432 dbname=pglogical_test1 user=repluser password=replpass | pgl_pglogical_test1_node_a_sub_2_a | {default,ddl_sql} | {all}
+(1 row)
+
+pglogical_test1=# select * from pglogical.show_subscription_status();
+ subscription_name | status | provider_node |                                    provider_dsn                                     |             slot_name              | replication_sets  | forward_origins 
+-------------------+--------+---------------+-------------------------------------------------------------------------------------+------------------------------------+-------------------+-----------------
+ sub_2_b           | down   | node-b        | host=172.31.18.180 port=5432 dbname=pglogical_test1 user=repluser password=replpass | pgl_pglogical_test1_node_b_sub_2_b | {default,ddl_sql} | {all}
+(1 row)
+
+pglogical_test1=# select pglogical.alter_subscription_enable('sub_2_a',true);
+ alter_subscription_enable 
+---------------------------
+ t
+(1 row)
+
+pglogical_test1=# select pglogical.alter_subscription_enable('sub_2_b',true);
+ alter_subscription_enable 
+---------------------------
+ t
+(1 row)
+
+Error from logs:
+connection to server at "172.31.24.189", port 5432 failed: FATAL:  no pg_hba.conf entry for host "172.31.18.180", user "repluser", database "pglogical_test1", no encryption
+Add pg_hba entries
+
+2025-12-12 01:55:42.162 UTC [386323] repluser@pglogical_test1 STATEMENT:  START_REPLICATION SLOT "pgl_pglogical_test1_node_a_sub_2_a" LOGICAL 1/95AF1438 (expected_encoding 'UTF8', min_proto_version '1', max_proto_version '1', startup_params_format '1', "binary.want_internal_basetypes" '1', "binary.want_binary_basetypes" '1', "binary.basetypes_major_version" '1600', "binary.sizeof_datum" '8', "binary.sizeof_int" '4', "binary.sizeof_long" '8', "binary.bigendian" '0', "binary.float4_byval" '0', "binary.float8_byval" '1', "binary.integer_datetimes" '0', "hooks.setup_function" 'pglogical.pglogical_hooks_setup', "pglogical.forward_origins" '"all"', "pglogical.replication_set_names" '"default",ddl_sql', "relmeta_cache_size" '-1', pg_version '160010', pglogical_version '2.4.6', pglogical_version_num '20406', pglogical_apply_pid '332543')
+
+2025-12-12 01:51:52.583 UTC [332514] [unknown]@pglogical_test FATAL:  XX000: could not send replication command "START_REPLICATION SLOT "pgl_pglogical_test_node_a_sub_2_a" LOGICAL 1B/5048F628 (expected_encoding 'UTF8', min_proto_version '1', max_proto_version '1', startup_params_format '1', "binary.want_internal_basetypes" '1', "binary.want_binary_basetypes" '1', "binary.basetypes_major_version" '1600', "binary.sizeof_datum" '8', "binary.sizeof_int" '4', "binary.sizeof_long" '8', "binary.bigendian" '0', "binary.float4_byval" '0', "binary.float8_byval" '1', "binary.integer_datetimes" '0', "hooks.setup_function" 'pglogical.pglogical_hooks_setup', "pglogical.forward_origins" '"all"', "pglogical.replication_set_names" '"default",ddl_sql', "relmeta_cache_size" '-1', pg_version '160010', pglogical_version '2.4.6', pglogical_version_num '20406', pglogical_apply_pid '332514')": ERROR:  replication slot "pgl_pglogical_test_node_a_sub_2_a" does not exist
+ 
+
