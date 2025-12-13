@@ -1,0 +1,248 @@
+Configure Repo:
+sudo apt install curl ca-certificates
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+--fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+sudo sh -c 'echo "deb
+[signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc]
+https://apt.postgresql.org/pub/repos/apt $(lsb
+_
+release -cs)-pgdg main" >
+/etc/apt/sources.list.d/pgdg.list'
+sudo apt update
+
+Backup Node:
+# install barman and barman-cli on backup server
+sudo apt -y install barman barman-cli
+
+DB Node:
+# install pg, barman and barman-cli on dbserver
+sudo apt -y install postgresql-16 barman barman-cli
+
+================================
+On Backup Node:
+sudo vi /etc/barman.conf
+[barman]
+; the system user who will own the files with backups and run backups
+barman_user = barman
+; directory with additional configuration files for individual servers
+configuration_files_directory = /etc/barman.d
+; directory where all backups will be stored
+barman_home = /var/lib/barman
+; location where the log file will be saved
+log_file = /var/log/barman/barman.log
+; login level
+log_level = INFO
+; minimum required number of backups
+minimum_redundancy = 2
+
+neha.korukula@barman-backup-node:~$ sudo cat /etc/barman.d/streaming-pg-5432.conf
+; alias/name of the server that will be backed up
+[streaming-pg-5432]
+; definition of the server and user who will check the cluster during the backup
+conninfo = host=10.30.50.91 user=barman dbname=postgres
+; connection definition for streaming backups
+streaming_conninfo = host=10.30.50.91 user=streaming_barman
+; backup method, postgres/rsync
+backup_method = postgres
+; enabling WAL file streaming
+streaming_archiver = on
+; name of the physical replication slot used for archiving
+slot_name = barman
+; should the barman automatically try to create a slot if it does not exist?
+create_slot = auto
+; !! on RHEL family servers, or if we need to create backups for different versions of Postgres
+; we add the path to the Postgres executable files in the version corresponding to the dbserver version
+path_prefix = /usr/lib/postgresql/16/bin/
+
+
+Steps to be performed on db server:
+
+echo "#/etc/postgresql/16/main/conf.d/barman.conf
+
+# specifying which network interfaces postgres should listen on
+# '*' listens on all network interfaces
+listen_addresses = '*'
+# maximum number of processes streaming WAL entries, default 10
+max_wal_senders = 5
+# maximum number of replication slots, default 10
+max_replication_slots = 5
+# logging level: minimal, replica, logical. To enable playback to
+# selected point in time, we must choose replica or logical. Minimal allows
+# only to restore data to a consistent state after an unexpected termination
+# to the postgres process
+wal_level = replica
+# redu mto the log instead of to the console
+# on Ubuntu it is disabled by default, on RHEL it is enabled
+logging_collector = on
+
+" | sudo tee /etc/postgresql/16/main/conf.d/barman.conf
+
+ sudo systemctl restart postgresql@16-main.service 
+
+ sudo -iu postgres psql -c "create user streaming_barman with replication password 'barman123'";
+ sudo -iu postgres psql -c "create user barman with password 'barman123'";
+sudo -iu postgres psql -d postgres -c "CREATE DATABASE barman_test;"
+
+For PG versions 15 and +
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_backup_start(text, boolean) to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_backup_stop(boolean) to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_switch_wal() to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_create_restore_point(text) to barman;"
+sudo -iu postgres psql -c "GRANT pg_read_all_settings TO barman;"
+sudo -iu postgres psql -c "GRANT pg_read_all_stats TO barman;"
+
+For PG Versions until 14
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_start_backup(text, boolean, boolean) to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_stop_backup() to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_stop_backup(boolean, boolean) to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_switch_wal() to barman;"
+sudo -iu postgres psql -c "GRANT EXECUTE ON FUNCTION pg_create_restore_point(text) to barman;"
+sudo -iu postgres psql -c "GRANT pg_read_all_settings TO barman;"
+sudo -iu postgres psql -c "GRANT pg_read_all_stats TO barman;"
+
+pg_hba.conf setup:
+
+echo "
+
+#Allowing replication & barman user connections
+host replication streaming_barman 10.30.50.90/32 scram-sha-256
+host postgres    barman           10.30.50.90/32 scram-sha-256
+" | sudo tee -a /etc/postgresql/16/main/pg_hba.conf
+
+sudo -iu postgres psql -d postgres -c "select pg_reload_conf();"
+
+On Backup server:
+As barman user:
+cat <<EOF > ~barman/.pgpass
+10.30.50.91:5432:*:barman:barman123
+10.30.50.91:5432:*:streaming_barman:barman123
+EOF
+chmod 600 ~barman/.pgpass
+
+Validate connectivity from backup node:
+barman@barman-backup-node:~$  psql -U barman -h 10.30.50.91 postgres -c "select now()"
+              now              
+-------------------------------
+ 2025-12-13 00:34:13.906757+00
+(1 row)
+
+Attempt to initialize replication by the streaming_barman user
+sudo -iu postgres psql -U streaming_barman -h 10.30.50.91 -c "IDENTIFY_SYSTEM" replication=1
+neha.korukula@barman-backup-node:~$ sudo -iu barman psql -U streaming_barman -h 10.30.50.91 -c "IDENTIFY_SYSTEM" replication=1
+      systemid       | timeline |  xlogpos  | dbname 
+---------------------+----------+-----------+--------
+ 7583104103457713453 |        1 | 0/19606E0 | 
+(1 row)
+
+Check the backup status:
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman check streaming-pg-5432
+Server streaming-pg-5432:
+	WAL archive: FAILED (please make sure WAL shipping is setup)
+	PostgreSQL: OK
+	no access to backup functions: FAILED (privileges for PostgreSQL backup functions are required (see documentation))
+	PostgreSQL streaming: OK
+	wal_level: OK
+	replication slot: OK
+	directories: OK
+	retention policy settings: OK
+	backup maximum age: OK (no last_backup_maximum_age provided)
+	backup minimum size: OK (0 B)
+	wal maximum age: OK (no last_wal_maximum_age provided)
+	wal size: OK (0 B)
+	compression settings: OK
+	failed backups: OK (there are 0 failed backups)
+	minimum redundancy requirements: FAILED (have 0 backups, expected at least 2)
+	pg_basebackup: OK
+	pg_basebackup compatible: OK
+	pg_basebackup supports tablespaces mapping: OK
+	systemid coherence: OK (no system Id stored on disk)
+	pg_receivexlog: OK
+	pg_receivexlog compatible: OK
+	receive-wal running: OK
+	archiver errors: OK
+
+  Error:
+  neha.korukula@barman-backup-node:~$ sudo -iu barman barman switch-wal --archive --archive-timeout 60 streaming-pg-5432
+EXCEPTION: Postgres user 'barman' is missing required privileges (see "Preliminary steps" in the Barman manual)
+See log file for more details.
+
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman switch-wal --archive --archive-timeout 60 streaming-pg-5432
+The WAL file 000000010000000000000001 has been closed on server 'streaming-pg-5432'
+Waiting for the WAL file 000000010000000000000001 from server 'streaming-pg-5432' (max: 60 seconds)
+Processing xlog segments from streaming for streaming-pg-5432
+	000000010000000000000001
+
+  neha.korukula@barman-backup-node:~$ sudo -iu barman barman check streaming-pg-5432
+Server streaming-pg-5432:
+	PostgreSQL: OK
+	superuser or standard user with backup privileges: OK
+	PostgreSQL streaming: OK
+	wal_level: OK
+	replication slot: OK
+	directories: OK
+	retention policy settings: OK
+	backup maximum age: OK (no last_backup_maximum_age provided)
+	backup minimum size: OK (0 B)
+	wal maximum age: OK (no last_wal_maximum_age provided)
+	wal size: OK (0 B)
+	compression settings: OK
+	failed backups: OK (there are 0 failed backups)
+	minimum redundancy requirements: FAILED (have 0 backups, expected at least 2)
+	pg_basebackup: OK
+	pg_basebackup compatible: OK
+	pg_basebackup supports tablespaces mapping: OK
+	systemid coherence: OK (no system Id stored on disk)
+	pg_receivexlog: OK
+	pg_receivexlog compatible: OK
+	receive-wal running: OK
+	archiver errors: OK
+
+Command to trigger backup
+barman backup streaming-pg-5432 --wait
+
+--wait switch to make the barman wait for the WAL files needed to recover a consistent version
+of the data
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman backup streaming-pg-5432 --wait
+Starting backup using postgres method for server streaming-pg-5432 in /var/lib/barman/streaming-pg-5432/base/20251213T004509
+Backup start at LSN: 0/2000060 (000000010000000000000002, 00000060)
+Starting backup copy via pg_basebackup for 20251213T004509
+WARNING: pg_basebackup does not copy the PostgreSQL configuration files that reside outside PGDATA. Please manually backup the following files:
+	/etc/postgresql/16/main/postgresql.conf
+	/etc/postgresql/16/main/pg_hba.conf
+	/etc/postgresql/16/main/pg_ident.conf
+	/etc/postgresql/16/main/conf.d/barman.conf
+
+Copy done (time: 3 seconds)
+Finalising the backup.
+This is the first backup for server streaming-pg-5432
+WAL segments preceding the current backup have been found:
+	000000010000000000000001 from server streaming-pg-5432 has been removed
+Backup size: 29.6 MiB
+Backup end at LSN: 0/4000000 (000000010000000000000003, 00000000)
+Backup completed (start time: 2025-12-13 00:45:09.717102, elapsed time: 3 seconds)
+Waiting for the WAL file 000000010000000000000003 from server 'streaming-pg-5432'
+Processing xlog segments from streaming for streaming-pg-5432
+	000000010000000000000002
+	000000010000000000000003
+
+Note :
+Barman always makes a full backup when backing up in streaming mode. This is
+because a streaming backup is actually pg_
+basebackup, which does not have the ability to
+perform differential backups or use other backups as a backup source. This has changed in the
+latest Barman release when used for PG17+.
+
+List backups:
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman list-backup streaming-pg-5432
+streaming-pg-5432 20251213T004509 - Sat Dec 13 00:45:13 2025 - Size: 45.6 MiB - WAL Size: 0 B
+
+# delete a specific backup
+barman delete <server_name> <backup_name> 
+# delete the oldest backup
+barman delete <server_name> oldest 
+
+The "delete oldest" command resulted in the barman deleting the backup along with all its associated WAL
+files from the archive that are not required by any of the other backups.
+
+page13 to continue------
