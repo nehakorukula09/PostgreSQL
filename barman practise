@@ -245,4 +245,171 @@ barman delete <server_name> oldest
 The "delete oldest" command resulted in the barman deleting the backup along with all its associated WAL
 files from the archive that are not required by any of the other backups.
 
-page13 to continue------
+=========================
+Backup Retentions:
+
+retention_policy
+minimum_redundancy
+
+minimum_redundancy = No. of backups to be kept.
+retention_policy = {REDUNDANCY value | RECOVERY WINDOW OF value {DAYS | WEEKS | MONTHS}}
+
+Note: The “delete oldest” command does not check policy settings; the only parameter that is important to it is minimum_redundancy.
+
+Eg: retention_policy = REDUNDANCY 3
+
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman list-backup streaming-pg-5432
+streaming-pg-5432 20251215T220828 - Mon Dec 15 22:08:29 2025 - Size: 45.6 MiB - WAL Size: 0 B
+streaming-pg-5432 20251215T220823 - Mon Dec 15 22:08:24 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+streaming-pg-5432 20251215T220800 - Mon Dec 15 22:08:01 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+streaming-pg-5432 20251215T220740 - Mon Dec 15 22:07:41 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB - OBSOLETE
+streaming-pg-5432 20251215T220738 - Mon Dec 15 22:07:39 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB - OBSOLETE
+
+Marks the rest of backups obselete as per retention_policy.
+-> All the unnecessary backups can be deleted by barman cron.
+
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman list-backup streaming-pg-5432
+streaming-pg-5432 20251215T221152 - Mon Dec 15 22:11:53 2025 - Size: 45.6 MiB - WAL Size: 0 B
+streaming-pg-5432 20251215T221149 - Mon Dec 15 22:11:50 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+streaming-pg-5432 20251215T221047 - Mon Dec 15 22:10:47 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+streaming-pg-5432 20251215T220828 - Mon Dec 15 22:08:29 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB - OBSOLETE
+streaming-pg-5432 20251215T220823 - Mon Dec 15 22:08:24 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB - OBSOLETE
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman cron
+Starting WAL archiving for server streaming-pg-5432
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman list-backup streaming-pg-5432
+streaming-pg-5432 20251215T221152 - Mon Dec 15 22:11:53 2025 - Size: 45.6 MiB - WAL Size: 0 B
+streaming-pg-5432 20251215T221149 - Mon Dec 15 22:11:50 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+streaming-pg-5432 20251215T221047 - Mon Dec 15 22:10:47 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+
+It is recommended that the “barman cron” command be added to the barman user's crontab and run every
+minute to ensure that all changes from WAL files have been archived and compressed and that copies that
+we no longer need have been deleted.
+
+# open crontab in a text editor for user Barman
+crontab -e
+# add the line below and save
+* * * * * /usr/bin/barman cron
+
+For newer versions , its already added to cron.
+neha.korukula@barman-backup-node:~$ cat /etc/cron.d/barman
+# /etc/cron.d/barman: crontab entries for the barman package
+MAILTO=root
+* * * * * barman [ -x /usr/bin/barman ] && /usr/bin/barman -q cron
+
+==================================================================
+Barman PIT restore:
+
+Barman allows us to very easily restore the database 
+to any place in time (--target-time), 
+to any transaction (--target-xid), 
+to a selected sequence in the log (--target-lsn), 
+to a previously created restore point (--target-name) or 
+simply until the first moment when the database has consistent data (--target-immediate).
+
+**We can recover data locally or to a remote server
+
+Test case:
+
+create table random_people as
+  with rnd_people as (
+    select distinct  
+            ('[0:9]={"Daniele","Debora","Mattia","Jake","Amy","Henry","Neil","Tim","John","George"}'::text[])
+                    [floor(random()*10)] first_name,
+            ('[0:9]={"Rossi","Verdi","Gialli","Caponi","Gallini","Gatti","Ford","Daniel","Harrison","Macdonald"}'::text[])
+                    [floor(random()*10)] last_name
+    from 
+      generate_series(1, 10 * 10 * 50)
+  )
+  select 
+    row_number() over() id, first_name, last_name 
+  from 
+    rnd_people;
+
+barman_test=# select now();
+              now              
+-------------------------------
+ 2025-12-15 23:13:53.866517+00
+(1 row)
+
+with rnd_people as (
+    select distinct  
+            ('[0:9]={"Daniele","Debora","Mattia","Jake","Amy","Henry","Neil","Tim","John","George"}'::text[])
+                    [floor(random()*10)] first_name,
+            ('[0:9]={"Rossi","Verdi","Gialli","Caponi","Gallini","Gatti","Ford","Daniel","Harrison","Macdonald"}'::text[])
+                    [floor(random()*10)] last_name
+    from 
+      generate_series(1, 10 * 10 * 50)
+)
+INSERT INTO random_people (id, first_name, last_name) 
+select 
+    row_number() over() id, first_name, last_name 
+  from 
+    rnd_people;
+barman_test=# select now();
+              now              
+-------------------------------
+ 2025-12-15 23:24:06.414454+00
+(1 row)
+
+we need to set up a passwordless SSH connection. To do this, you need to generate RSA keys on the postgres server as the postgres user and on the
+barman server as the barman user.
+
+ssh barman@postgres DB server
+ssh postgres @barman backup server
+
+2025-12-15 23:13:53.866517+00
+
+Restore from backup node:
+barman recover streaming-pg-5432 20251215T221047 /var/lib/postgresql/16/test_restore --remote-ssh-command "ssh postgres@10.30.50.91" --target-time "2025-12-15 23:13:53.866517+00:00" --get-wal
+
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman list-backup streaming-pg-5432
+streaming-pg-5432 20251215T221152 - Mon Dec 15 22:11:53 2025 - Size: 45.6 MiB - WAL Size: 0 B
+streaming-pg-5432 20251215T221149 - Mon Dec 15 22:11:50 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+streaming-pg-5432 20251215T221047 - Mon Dec 15 22:10:47 2025 - Size: 45.6 MiB - WAL Size: 32.0 MiB
+
+
+neha.korukula@barman-backup-node:~$ sudo -iu barman barman recover streaming-pg-5432 20251215T221047 /var/lib/postgresql/16/test_restore --remote-ssh-command "ssh postgres@10.30.50.91" --target-time "2025-12-15 23:13:53.866517+00:00" --get-wal
+Starting remote restore for server streaming-pg-5432 using backup 20251215T221047
+Destination directory: /var/lib/postgresql/16/test_restore
+Remote command: ssh postgres@10.30.50.91
+Doing PITR. Recovery target time: '2025-12-15 23:13:53.866517+00:00'
+Copying the base backup.
+Generating recovery configuration
+Identify dangerous settings in destination directory.
+
+WARNING
+The following configuration files have not been saved during backup, hence they have not been restored.
+You need to manually restore them in order to start the recovered PostgreSQL instance:
+
+    postgresql.conf
+    pg_hba.conf
+    pg_ident.conf
+
+WARNING: 'get-wal' is in the specified 'recovery_options'.
+Before you start up the PostgreSQL server, please review the postgresql.auto.conf file
+inside the target directory. Make sure that 'restore_command' can be executed by the PostgreSQL user.
+
+Recovery completed (start time: 2025-12-15 23:57:42.757175+00:00, elapsed time: 7 seconds)
+Your PostgreSQL server has been successfully prepared for recovery!
+
+postgres@barman-db-node:~/16/test_restore$ cat /var/lib/postgresql/16/test_restore/postgresql.auto.conf
+# Do not edit this file manually!
+# It will be overwritten by the ALTER SYSTEM command.
+
+# The 'barman-wal-restore' command is provided in the 'barman-cli' package
+restore_command = 'barman-wal-restore -P -U barman barman-backup-node streaming-pg-5432 %f %p'
+recovery_target_time = '2025-12-15 23:13:53.866517+00:00'
+
+Error:
+postgres@barman-db-node:~$ /usr/lib/postgresql/16/bin/pg_ctl start -D /var/lib/postgresql/16/test_restore
+waiting for server to start....2025-12-16 00:33:36.462 GMT [58039] LOG:  could not stat file "/var/lib/postgresql/16/test_restore/conf.d/barman.conf": Too many levels of symbolic links
+2025-12-16 00:33:36.462 GMT [58039] FATAL:  configuration file "/var/lib/postgresql/16/test_restore/postgresql.conf" contains errors
+ stopped waiting
+pg_ctl: could not start server
+Examine the log output.
+
+To be continued!!!!
+==================================
+Recover all available data:
+==================================
+Barman with automatic cluster management tools (Patroni/repmgr):
